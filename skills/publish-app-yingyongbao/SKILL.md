@@ -144,13 +144,14 @@ python3 "$PY" status
 
 | 命令 | 用途 |
 |---|---|
+| `doctor` | 自检凭据、产物与线上版本；缺凭据也不报错，只列缺哪几项 |
 | `query-detail` | 查询当前应用详情 |
 | `upload-file --type apk --file <path>` | 单文件上传到 COS，返回 serial_number |
 | `update --apk64 <path> --feature "..."` | 上传 APK 并提交更新 |
 | `status` | 查询最近一次更新的审核状态 |
 | `publish --apk <path> --feature "..."` | 完整流程：查详情 → 上传 → 提交 |
 
-全局选项 `--dry-run`：跳过实际上传/提交，打印将执行的参数（`query-detail` / `status` 仍会真实调用）。
+全局选项 `--dry-run`：跳过实际上传/提交，打印将执行的参数（`query-detail` / `status` / `doctor` 仍会真实调用只读接口）。
 
 ## 常见错误
 

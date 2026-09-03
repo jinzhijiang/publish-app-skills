@@ -8,6 +8,7 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -279,6 +280,77 @@ def print_response(raw: str) -> None:
         sys.exit(1)
 
 
+def version_code_from_pubspec() -> str | None:
+    """`version: 3.3.0+30004` in the Flutter project root -> `30004`.
+
+    Looked up from the CALLER's cwd upward, not relative to the skill: the skill
+    is installed globally, so its own location says nothing about which project
+    is being published.
+    """
+    for base in (Path.cwd(), *Path.cwd().parents):
+        pubspec = base / "pubspec.yaml"
+        if pubspec.is_file():
+            match = re.search(
+                r"^version:\s*\S+\+(\d+)\s*$", pubspec.read_text(encoding="utf-8"), re.M
+            )
+            return match.group(1) if match else None
+    return None
+
+
+def cmd_doctor(cfg: dict[str, str], args: argparse.Namespace) -> None:
+    """Offline-first credential/artifact self-check. Reports presence, never values."""
+    cert = Path(cfg["public_cert_path"]).expanduser() if cfg["public_cert_path"] else None
+    apk = Path(args.apk).expanduser()
+    openssl = shutil.which("openssl")
+    report: dict[str, Any] = {
+        "project": project_name(),
+        "configPath": str(resolve_config_path(args.config) or "none"),
+        "hasUserName": bool(cfg["user_name"]),
+        "hasPrivateKey": bool(cfg["private_key"]),
+        "publicCertPath": cfg["public_cert_path"] or "",
+        "publicCertExists": bool(cert and cert.is_file()),
+        "packageName": cfg["package_name"],
+        "apkPath": args.apk,
+        "apkExists": apk.is_file(),
+        "versionCodeFromPubspec": version_code_from_pubspec(),
+        "opensslAvailable": bool(openssl),
+    }
+    missing = [
+        name
+        for name, key in (
+            ("XIAOMI_USER_NAME", "user_name"),
+            ("XIAOMI_PRIVATE_KEY", "private_key"),
+            ("XIAOMI_PUBLIC_CERT_PATH", "public_cert_path"),
+            ("XIAOMI_PACKAGE_NAME", "package_name"),
+        )
+        if not cfg[key]
+    ]
+    report["missingCredentials"] = missing
+    if missing or not report["publicCertExists"] or not openssl:
+        report["queryOk"] = False
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
+    # Credentials look complete: prove them against the live read-only endpoint.
+    try:
+        request_text = json_compact(
+            {"packageName": cfg["package_name"], "userName": cfg["user_name"]}
+        )
+        sig, _ = build_sig(cfg["private_key"], cert, request_text, {})
+        raw = post_multipart("/dev/query", {"RequestData": request_text, "SIG": sig}, {}, timeout=60)
+        data = json.loads(raw)
+        report["queryOk"] = data.get("result") == 0
+        report["queryResult"] = data.get("result")
+        report["queryMessage"] = data.get("message")
+        # -7 = package name taken by another developer; anything non-0 blocks publishing.
+        if isinstance(data.get("data"), dict):
+            report["onlineVersionCode"] = data["data"].get("versionCode")
+            report["onlineVersionName"] = data["data"].get("versionName")
+    except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        report["queryOk"] = False
+        report["queryError"] = f"{type(exc).__name__}: {exc}"
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
 def cmd_category(cfg: dict[str, str], args: argparse.Namespace) -> None:
     raw = post_multipart("/dev/category", {}, {}, timeout=60)
     print_response(raw)
@@ -447,6 +519,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="Print payload without submitting")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    doctor = sub.add_parser("doctor", help="检查凭据、证书、产物与线上版本")
+    doctor.add_argument("--apk", default=DEFAULT_APK)
+
     sub.add_parser("category", help="Query Xiaomi app categories")
 
     query = sub.add_parser("query", help="Query package info")
@@ -488,15 +563,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    if args.command == "category":
+    if args.command in {"category", "doctor"}:
         cfg = get_config(Path(args.config).expanduser() if args.config else None, require_auth=False)
     else:
         cfg = get_config(Path(args.config).expanduser() if args.config else None, require_auth=True)
-    if args.command != "category" and shutil.which("openssl") is None:
+    if args.command not in {"category", "doctor"} and shutil.which("openssl") is None:
         print("error: openssl is required for Xiaomi RSA signing", file=sys.stderr)
         sys.exit(2)
     commands = {
         "category": cmd_category,
+        "doctor": cmd_doctor,
         "query": cmd_query,
         "push": cmd_push,
         "push-channel-apk": cmd_push_channel_apk,

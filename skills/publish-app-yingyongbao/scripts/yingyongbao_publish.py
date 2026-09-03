@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -95,7 +96,7 @@ def load_config_env(config_path: Path | None = None) -> Path | None:
     return path
 
 
-def get_config(config_path: Path | None = None) -> dict[str, str]:
+def get_config(config_path: Path | None = None, *, require_auth: bool = True) -> dict[str, str]:
     loaded = load_config_env(config_path)
     cfg = {
         "user_id": os.environ.get("YINGYONGBAO_USER_ID", ""),
@@ -104,7 +105,7 @@ def get_config(config_path: Path | None = None) -> dict[str, str]:
         "pkg_name": os.environ.get("YINGYONGBAO_PKG_NAME", DEFAULT_PKG),
     }
     missing = [k for k, v in cfg.items() if not v]
-    if missing:
+    if missing and require_auth:
         env_names = {
             "user_id": "YINGYONGBAO_USER_ID",
             "access_secret": "YINGYONGBAO_ACCESS_SECRET",
@@ -227,6 +228,67 @@ def upload_to_cos(pre_sign_url: str, file_path: Path, *, timeout: int = 300) -> 
     except urllib.error.URLError as e:
         print(f"error: COS upload failed: {e.reason}", file=sys.stderr)
         sys.exit(1)
+
+
+def version_code_from_pubspec() -> str | None:
+    """`version: 3.3.0+30004` in the Flutter project root -> `30004`.
+
+    Looked up from the CALLER's cwd upward, not relative to the skill: the skill
+    is installed globally, so its own location says nothing about which project
+    is being published.
+    """
+    for base in (Path.cwd(), *Path.cwd().parents):
+        pubspec = base / "pubspec.yaml"
+        if pubspec.is_file():
+            match = re.search(
+                r"^version:\s*\S+\+(\d+)\s*$", pubspec.read_text(encoding="utf-8"), re.M
+            )
+            return match.group(1) if match else None
+    return None
+
+
+def cmd_doctor(cfg: dict[str, str], args: argparse.Namespace) -> None:
+    """Offline-first credential/artifact self-check. Reports presence, never values."""
+    apk = Path(args.apk).expanduser()
+    env_names = {
+        "user_id": "YINGYONGBAO_USER_ID",
+        "access_secret": "YINGYONGBAO_ACCESS_SECRET",
+        "app_id": "YINGYONGBAO_APP_ID",
+        "pkg_name": "YINGYONGBAO_PKG_NAME",
+    }
+    missing = [env_names[k] for k in env_names if not cfg[k]]
+    report: dict[str, Any] = {
+        "project": project_name(),
+        "configPath": str(resolve_config_path(Path(args.config).expanduser() if args.config else None) or "none"),
+        "hasUserId": bool(cfg["user_id"]),
+        "hasAccessSecret": bool(cfg["access_secret"]),
+        "appId": cfg["app_id"],
+        "pkgName": cfg["pkg_name"],
+        "apkPath": args.apk,
+        "apkExists": apk.is_file(),
+        "versionCodeFromPubspec": version_code_from_pubspec(),
+        "missingCredentials": missing,
+    }
+    if missing:
+        report["detailOk"] = False
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
+    # Credentials look complete: prove them against the read-only detail endpoint.
+    try:
+        data = api_post(
+            "/query_app_detail",
+            cfg,
+            {"pkg_name": cfg["pkg_name"], "app_id": cfg["app_id"]},
+        )
+        report["detailOk"] = data.get("ret") == 0
+        report["ret"] = data.get("ret")
+        report["msg"] = data.get("msg")
+        report["onlineVersionName"] = data.get("version_name")
+        report["onlineVersionCode"] = data.get("version_code")
+    except (OSError, ValueError, SystemExit) as exc:
+        report["detailOk"] = False
+        report["detailError"] = f"{type(exc).__name__}: {exc}"
+    print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 def cmd_query_detail(cfg: dict[str, str], args: argparse.Namespace) -> None:
@@ -444,6 +506,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    p_doctor = sub.add_parser("doctor", help="检查凭据、产物与线上版本")
+    p_doctor.add_argument("--apk", default=DEFAULT_APK)
+
     sub.add_parser("query-detail", help="Query current app detail")
 
     p_upload = sub.add_parser("upload-file", help="Upload one file to COS")
@@ -509,9 +574,10 @@ def main() -> None:
     if args.config and not config_path.is_file():
         print(f"error: config file not found: {config_path}", file=sys.stderr)
         sys.exit(2)
-    cfg = get_config(config_path)
+    cfg = get_config(config_path, require_auth=args.command != "doctor")
 
     handlers = {
+        "doctor": cmd_doctor,
         "query-detail": cmd_query_detail,
         "upload-file": cmd_upload_file,
         "update": cmd_update,

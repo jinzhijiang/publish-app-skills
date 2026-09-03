@@ -84,6 +84,7 @@ python3 "$PY" push --apk build/app/outputs/channels/xiaomi-app-release.apk \
 
 | 命令 | 用途 |
 |---|---|
+| `doctor` | 自检凭据、证书、产物与线上版本；缺凭据也不报错，只列缺哪几项 |
 | `category` | 查询小米应用分类；无需凭据 |
 | `query` | 按包名查询当前账号下应用详情 |
 | `push` | 提交新增、更新包、内容更新；`0=新增`、`1=更新包`、`2=内容更新` |
