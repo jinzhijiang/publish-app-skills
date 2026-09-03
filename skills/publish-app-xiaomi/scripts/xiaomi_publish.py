@@ -351,6 +351,19 @@ def cmd_doctor(cfg: dict[str, str], args: argparse.Namespace) -> None:
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
+def redact_sig(sig_text: str) -> dict[str, Any]:
+    """SIG 明文里的 `password` 就是 XIAOMI_PRIVATE_KEY。
+
+    --dry-run 的目的是核对 RequestData / 文件 MD5 / 签名结构，不需要看私钥本身；
+    而 dry-run 的输出经常被贴进工单、日志或 AI 对话，泄漏一次就得重置私钥
+    （重置会让旧私钥立即失效，正在跑的发版脚本一并挂掉）。所以这里只回显长度。
+    """
+    data = json.loads(sig_text)
+    if isinstance(data, dict) and data.get("password"):
+        data["password"] = f"<redacted: {len(data['password'])} chars>"
+    return data
+
+
 def cmd_category(cfg: dict[str, str], args: argparse.Namespace) -> None:
     raw = post_multipart("/dev/category", {}, {}, timeout=60)
     print_response(raw)
@@ -367,7 +380,7 @@ def cmd_query(cfg: dict[str, str], args: argparse.Namespace) -> None:
         {},
     )
     if args.dry_run:
-        print(json.dumps({"RequestData": request_data, "SIG_plain": json.loads(sig_text)}, ensure_ascii=False, indent=2))
+        print(json.dumps({"RequestData": request_data, "SIG_plain": redact_sig(sig_text)}, ensure_ascii=False, indent=2))
         return
     raw = post_multipart("/dev/query", {"RequestData": request_text, "SIG": sig}, {}, timeout=60)
     print_response(raw)
@@ -468,7 +481,7 @@ def cmd_push(cfg: dict[str, str], args: argparse.Namespace) -> None:
                 {
                     "endpoint": "/dev/push",
                     "RequestData": request_data,
-                    "SIG_plain": json.loads(sig_text),
+                    "SIG_plain": redact_sig(sig_text),
                     "files": {name: str(path) for name, path in files.items()},
                 },
                 ensure_ascii=False,
@@ -497,7 +510,7 @@ def cmd_push_channel_apk(cfg: dict[str, str], args: argparse.Namespace) -> None:
                 {
                     "endpoint": "/dev/pushChannelApk",
                     "RequestData": request_data,
-                    "SIG_plain": json.loads(sig_text),
+                    "SIG_plain": redact_sig(sig_text),
                     "files": {"channelApk": str(channel_apk)},
                 },
                 ensure_ascii=False,
