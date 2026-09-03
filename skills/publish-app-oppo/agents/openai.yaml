@@ -1,0 +1,4 @@
+interface:
+  display_name: "OPPO APK 自动发布"
+  short_description: "通过 OPPO API 传包能力上传 APK 并发布新版本"
+  default_prompt: "Use $publish-app-oppo to publish an OPPO channel APK update."

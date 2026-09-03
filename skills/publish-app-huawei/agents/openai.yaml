@@ -1,0 +1,4 @@
+interface:
+  display_name: "AppGallery Publish"
+  short_description: "Huawei AppGallery first launch and update publishing"
+  default_prompt: "Use $publish-app-huawei to publish this app's Android or HarmonyOS release to Huawei AppGallery (first launch or update)."

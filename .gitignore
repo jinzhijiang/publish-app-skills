@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.pyc
+.idea/
+
+# 真实凭据一律不进仓库：脚本从 ~/.config/ai-ignore-config/<项目名>/ 读，
+# 仓库里只留 *.example.env 模板。
+config.env
+**/config.env
+*.env
+!*.example.env

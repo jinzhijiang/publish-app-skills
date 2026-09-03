@@ -1,0 +1,4 @@
+interface:
+  display_name: "Yingyongbao Publish"
+  short_description: "Publish Tencent Yingyongbao app updates via open.qq.com API"
+  default_prompt: "Use $publish-app-yingyongbao to publish this project's Android update to Tencent Yingyongbao through the open.qq.com Developer API."

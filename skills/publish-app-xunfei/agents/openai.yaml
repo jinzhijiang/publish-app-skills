@@ -1,0 +1,4 @@
+interface:
+  display_name: "科大讯飞应用市场发布"
+  short_description: "通过 Chrome 上传 xunfei 渠道 APK 并提交科大讯飞 AI 学习机应用中心审核"
+  default_prompt: "使用 $publish-app-xunfei 预检 xunfei 渠道 APK，通过本地 harness 上传到讯飞控制台，走完三步上架向导并在各项独立确认门槛下提交审核。"

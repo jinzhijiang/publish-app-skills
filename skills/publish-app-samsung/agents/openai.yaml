@@ -1,0 +1,4 @@
+interface:
+  display_name: "三星 Galaxy Store 发布"
+  short_description: "通过 Chrome 发布三星 Android APK 并处理英文资料、合规声明与审核状态"
+  default_prompt: "使用 $publish-app-samsung 预检三星渠道 APK，并通过 Chrome 修复商店资料、上传新版本和提交审核。"

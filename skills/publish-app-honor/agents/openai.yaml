@@ -1,0 +1,4 @@
+interface:
+  display_name: "荣耀 APK 自动发布"
+  short_description: "通过荣耀 API 传包服务上传 APK 并提交审核"
+  default_prompt: "Use $publish-app-honor to publish a Honor channel APK update."

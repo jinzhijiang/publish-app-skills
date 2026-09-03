@@ -1,0 +1,4 @@
+interface:
+  display_name: "360 应用市场发布"
+  short_description: "通过 Chrome 上传 c360 渠道 APK 并提交 360 应用市场审核"
+  default_prompt: "Use $publish-app-360 to publish a c360 channel APK update to 360 App Market."

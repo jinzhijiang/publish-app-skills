@@ -1,0 +1,4 @@
+interface:
+  display_name: "联想应用市场发布"
+  short_description: "通过 Chrome 上传 lenovo 渠道 APK 并提交联想应用市场审核"
+  default_prompt: "Use $publish-app-lenovo to publish an update for this project's existing app in Lenovo Open Platform."

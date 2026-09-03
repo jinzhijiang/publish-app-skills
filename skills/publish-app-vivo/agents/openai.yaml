@@ -1,0 +1,4 @@
+interface:
+  display_name: "vivo APK 自动发布"
+  short_description: "通过 vivo API 传包服务上传 APK 并提交更新"
+  default_prompt: "Use $publish-app-vivo to publish a vivo channel APK update."

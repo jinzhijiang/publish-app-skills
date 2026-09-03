@@ -1,0 +1,4 @@
+interface:
+  display_name: "小米 APK 自动发布"
+  short_description: "自动提交安卓 APK 更新到小米应用商店开放平台控制台"
+  default_prompt: "Use $publish-app-xiaomi to publish a Xiaomi channel APK update."

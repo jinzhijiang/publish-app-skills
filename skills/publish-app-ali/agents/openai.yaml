@@ -1,0 +1,4 @@
+interface:
+  display_name: "阿里应用分发发布"
+  short_description: "通过 Chrome 发布阿里 Android APK 并核验版本、合规与审核状态"
+  default_prompt: "使用 $publish-app-ali 预检阿里渠道 APK，并在各项独立确认门槛下通过 Chrome 更新应用和提交审核。"
