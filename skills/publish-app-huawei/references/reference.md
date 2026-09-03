@@ -127,6 +127,42 @@ The response commonly includes `pkgVersion`; keep it in the command output becau
 
 `PUT /api/publish/v2/app-language-info?appId=<appId>`
 
+本地化文案字段（`store-listing` 命令可写，实测 2026-09-03）：
+
+| 字段 | 含义 | 上限 | ASO 权重 |
+| --- | --- | ---: | --- |
+| `appName` | 应用名称 | 以后台校验为准 | 最高；**改名会重新走审核** |
+| `briefInfo` | 一句话简介 | 80 | 高，参与商店搜索 |
+| `appDesc` | 应用介绍 | 8000 | 中，参与商店搜索 |
+| `newFeatures` | 新版本特性（更新说明） | 500 | 低 |
+
+`GET app-info` 的 `languages[]` 里还会返回 `icon` / `introPic` / `deviceMaterials` /
+`introVideo` / `rcmdPic` / `showType` 等素材字段——那些是**只读回显**，不要原样 PUT 回去。
+
+该接口是**增量更新**：只传 `newFeatures` 不会清空 `appDesc` 与素材
+（`release-notes` 命令一直这么用）。不放心时加 `--merge-current`，
+它先 `app-info` 读回四个文本字段再一起提交。
+
+**华为硬性要求：文案不能带 emoji**，否则保存被拒。
+
+## releaseState 实测取值（2026-09-03，一次 Android + HarmonyOS 发版）
+
+`GET app-info` 的 `appInfo.releaseState` 是判断「到底提交没有」最直接的信号，
+比看 `versionNumber` 可靠——草稿版本号在传包后就变了，但那不代表已提交。
+
+| 值 | 观察到的时机 |
+| ---: | --- |
+| `0` | 稳定态：有在架版本，草稿无待提交变更 |
+| `7` | 传包 + 改文案之后、提审之前（草稿有待提交变更） |
+| `5` | **Android** 提交审核后 |
+| `12` | **HarmonyOS** 提交审核后 |
+
+两端提审后的取值**不一样**，别用同一个常量判断。这些是实测观察，不是华为公开文档的枚举，
+新场景（定时发布、分阶段发布、驳回）可能有别的值——遇到就补进本表。
+
+判断「已上架」看 `onShelfVersionNumber` / `onShelfVersionCode`，
+它们在提审后**不会变**，只有审核通过发布后才更新。
+
 Body:
 
 ```json

@@ -620,12 +620,31 @@ def update_release_notes(
     lang: str,
     notes: str,
 ) -> dict[str, Any]:
+    return update_language_info(cfg, token, pcfg, lang=lang, fields={"newFeatures": notes})
+
+
+def update_language_info(
+    cfg: dict[str, str],
+    token: str,
+    pcfg: dict[str, Any],
+    *,
+    lang: str,
+    fields: dict[str, str],
+) -> dict[str, Any]:
+    """PUT app-language-info with an arbitrary subset of the localized text fields.
+
+    AppGallery treats this endpoint as a PARTIAL update: omitted keys keep their
+    stored value, which is why `release-notes` can send `newFeatures` alone
+    without wiping the icon and screenshots. `store-listing --merge-current`
+    re-sends the sibling text fields anyway for callers who would rather not
+    rely on that.
+    """
     return authed_put(
         cfg,
         token,
         "/publish/v2/app-language-info",
         {"appId": require_app_id(pcfg)},
-        {"lang": lang, "newFeatures": notes},
+        {"lang": lang, **fields},
     )
 
 
@@ -823,6 +842,78 @@ def cmd_release_notes(args: argparse.Namespace) -> None:
         return
     token = obtain_token(cfg)["access_token"]
     print_json(update_release_notes(cfg, token, pcfg, lang=lang, notes=text))
+
+
+LISTING_TEXT_FIELDS = ("appName", "briefInfo", "appDesc", "newFeatures")
+
+
+def read_text_arg(inline: str | None, file_path: str | None, label: str) -> str | None:
+    if inline and file_path:
+        fail(f"pass only one of --{label} / --{label}-file", code=2)
+    if file_path:
+        path = Path(file_path).expanduser()
+        if not path.is_file():
+            fail(f"{label} file not found: {path}", code=2)
+        return path.read_text(encoding="utf-8").strip()
+    return inline
+
+
+def cmd_store_listing(args: argparse.Namespace) -> None:
+    """Update the localized store listing (ASO copy), not just release notes."""
+    cfg = load_config(args, allow_missing=args.dry_run)
+    pcfg = platform_config(args.platform, args)
+    lang = args.lang or cfg["default_lang"]
+
+    fields: dict[str, str] = {}
+    for key, inline, file_path in (
+        ("appName", args.app_name, None),
+        ("briefInfo", args.brief_info, args.brief_info_file),
+        ("appDesc", args.app_desc, args.app_desc_file),
+        ("newFeatures", args.release_notes, args.release_notes_file),
+    ):
+        value = read_text_arg(inline, file_path, key)
+        if value:
+            fields[key] = value
+    if not fields:
+        fail(
+            "nothing to update: pass at least one of --app-name / --brief-info(-file) / "
+            "--app-desc(-file) / --release-notes(-file)",
+            code=2,
+        )
+
+    token = None
+    if args.merge_current and not args.dry_run:
+        token = obtain_token(cfg)["access_token"]
+        current = authed_get(
+            cfg, token, "/publish/v2/app-info", {"appId": require_app_id(pcfg)}
+        )
+        stored = next(
+            (l for l in current.get("languages") or [] if l.get("lang") == lang), {}
+        )
+        merged = {k: stored[k] for k in LISTING_TEXT_FIELDS if stored.get(k)}
+        merged.update(fields)
+        fields = merged
+
+    preview = {
+        k: (f"{v[:60]}…({len(v)} chars)" if len(v) > 60 else v) for k, v in fields.items()
+    }
+    if args.dry_run:
+        dry_run_request(
+            "store-listing",
+            cfg,
+            pcfg,
+            {
+                "method": "PUT",
+                "path": "/api/publish/v2/app-language-info",
+                "lang": lang,
+                "fields": preview,
+            },
+        )
+        return
+    if token is None:
+        token = obtain_token(cfg)["access_token"]
+    result = update_language_info(cfg, token, pcfg, lang=lang, fields=fields)
+    print_json({"lang": lang, "sent": preview, "response": result})
 
 
 def cmd_upload(args: argparse.Namespace) -> None:
@@ -1033,6 +1124,25 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(status)
     add_platform(status)
     status.set_defaults(func=cmd_info)
+
+    listing = subparsers.add_parser(
+        "store-listing",
+        help="更新商店文案（应用名称/一句话简介/应用介绍/更新说明），用于 ASO",
+    )
+    add_common(listing)
+    add_platform(listing)
+    add_release_notes(listing)
+    listing.add_argument("--app-name", help="应用名称 appName（改名会重新走审核，慎用）")
+    listing.add_argument("--brief-info", help="一句话简介 briefInfo（华为上限 80 字）")
+    listing.add_argument("--brief-info-file", help="从文件读取一句话简介")
+    listing.add_argument("--app-desc", help="应用介绍 appDesc（华为上限 8000 字）")
+    listing.add_argument("--app-desc-file", help="从文件读取应用介绍")
+    listing.add_argument(
+        "--merge-current",
+        action="store_true",
+        help="先读回线上文案再合并提交，不依赖服务端的增量更新语义",
+    )
+    listing.set_defaults(func=cmd_store_listing)
 
     release_notes = subparsers.add_parser("release-notes", help="Update release notes")
     add_common(release_notes)

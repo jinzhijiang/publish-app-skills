@@ -121,6 +121,7 @@ python3 "$PY" publish --platform android --app-id <目标appId> --file <apk路�
 | `appid-list` | 按包名查询 appId，Android 默认 `packageTypes=1`，HarmonyOS 默认 `packageTypes=7` |
 | `info` | 查询应用信息，验证 appId 与权限；也可回读隐私政策/分级/发布国家等已配字段 |
 | `status` | 查询当前可见的应用/版本状态，当前实现复用 `app-info` 响应 |
+| `store-listing` | 更新商店文案做 ASO：`--app-name` / `--brief-info(-file)` / `--app-desc(-file)` / `--release-notes(-file)`，只发传了的字段；`--merge-current` 先读回线上文案再合并 |
 | `release-notes` | 更新草稿的 `newFeatures` 更新说明 |
 | `upload` | 上传本地包，返回可用于 `attach-file` 的 `fileDestUrl` |
 | `attach-file` | 把已上传包关联到应用草稿 |
