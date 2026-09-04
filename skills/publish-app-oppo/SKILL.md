@@ -129,9 +129,15 @@ python3 "$PY" task-state --version-code 30004
   原样回传会被校验拦下。
 - 发版接口**不接受自建 CDN 地址**，APK/图片必须走平台的文件上传接口拿 URL。
 - 文件上传的 `sign` 是一次性的，每个文件都要重新调一次 `get-upload-url`；脚本已经处理。
-- 字段长度硬约束：`summary` ≤13 字符且不能有标点空格，`detail_desc` ≥20 字，`update_desc` ≥5 字，
-  竖版截图 ≥2 张。
+- 字段长度硬约束：`summary` ≤13 字符且不能有标点空格，`detail_desc` **≥20 且 ≤1024 字**，
+  `update_desc` ≥5 字，竖版截图 ≥2 张。
+- **`detail_desc` 超 1024 字会被静默截断**，不报错、任务照样「处理成功」，但商店页会断在句子中间。
+  提交前自己卡长度，提交后用 `info --field detail_desc` 回读比对。
 - `version_code` 必须严格大于线上版本，`version_name` 建议同步更新，否则报"版本低于线上版本"。
 - 应用正在审核中时不能再次提交。
+- **继承回来的 `adaptive_type` 不能原样提交**：`info` 返回 `"0"`（未设置的哨兵值），
+  回传会得到 `errno=911001 适配方式有误`。它不在必传字段里，发版时加 `--omit adaptive_type`
+  让平台沿用上一版即可。报错发生在 APK 上传成功**之后**，重跑会重新上传一次。
+  详见 [references/reference.md](references/reference.md)。
 - 只改文案不换包用 `更新资料`（`/resource/v1/app/updm`）而不是发布版本；脚本暂未封装该接口，
   参数见 [references/reference.md](references/reference.md)。

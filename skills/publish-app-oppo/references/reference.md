@@ -65,6 +65,44 @@
 `copyright_url`、`business_username`、`business_email`、`business_mobile`、
 `age_level`、`adaptive_equipment`
 
+### `detail_desc` 超 1024 字被静默截断（2026-09-04 实测）
+
+提交 1328 字的 `detail_desc`，任务返回 `task_state=2 处理成功`、**没有任何报错**，
+但回读 `info --field detail_desc` 只有 **1024 字**，且是原文的前缀——
+在第 1024 个字符处硬切，正好断在一个小标题中间（`…该收手了。\n\n【找一`）。
+
+```
+本地提交 1328 字 → 线上存储 1024 字（前缀一致，差 304 字）
+```
+
+这是最阴的一类失败：接口成功、任务成功、只有商店页面上能看出文案残缺。
+**提交后必须回读比对长度**，别只看 `task_state`。
+
+处理办法：给 OPPO 单独准备一份 ≤1024 字的描述，不要和华为那份 8000 字上限的共用。
+
+### `errno=911001 适配方式有误`：继承 `adaptive_type` 会翻车（2026-09-04 实测）
+
+`/resource/v1/app/info` 读回来的 `adaptive_type` 是 `"0"`，把它原样提交给
+`/resource/v1/app/upd` 会被拒：
+
+```
+error: app/upd failed, errno=911001, message=适配方式有误
+```
+
+`"0"` 是读接口表示「未设置」的哨兵值，写接口并不接受它。
+`adaptive_type` **在必传字段里没有**（只有 `adaptive_equipment` 是必传），
+所以正确做法是不提交它，让平台沿用上一版：
+
+```bash
+python3 "$PY" publish --apk <apk> --update-desc "…" --omit adaptive_type
+```
+
+注意报错发生在 **APK 已经上传成功之后**——`app/upd` 是独立的一步。
+看到这个错不用担心包没传上去，但重跑 `publish` 会重新上传一次。
+
+真正需要声明大屏/折叠屏适配时才显式 `--set adaptive_type=<平台文档的有效值>`，
+不要从 `info` 的回显里抄。
+
 `apk_url` 是 JSON 字符串数组：
 
 ```json
