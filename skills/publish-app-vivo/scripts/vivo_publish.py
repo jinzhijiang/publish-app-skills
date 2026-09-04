@@ -87,6 +87,7 @@ CODES = {
 # 业务返回码（subCode），取 app.upload.apk.app / app.sync.update.app 两个接口的并集
 SUB_CODES = {
     "11001": "包名不正确，未查询到应用",
+    "11011": "开发者账号下不存在该应用——首次上架须先在控制台建应用，API 不能建",
     "12002": "应用不存在，更新失败",
     "12006": "应用主标题一年修改超过 4 次",
     "12010": "应用正在审核中，不允许操作",
@@ -220,22 +221,28 @@ def http_request(
         sys.exit(1)
 
 
-def check_result(raw: str, *, label: str) -> Any:
+def check_result(raw: str, *, label: str, strict: bool = True) -> Any:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
+        if not strict:
+            return {"_error": {"label": label, "reason": "non-JSON", "raw": raw[:400]}}
         print(f"error: {label} returned non-JSON: {raw}", file=sys.stderr)
         sys.exit(1)
     code = data.get("code")
     if code != 0:
         hint = CODES.get(code, "")
         suffix = f" ({hint})" if hint else ""
+        if not strict:
+            return {"_error": {"label": label, "code": code, "hint": hint, "msg": data.get("msg")}}
         print(f"error: {label} failed, code={code}{suffix}, msg={data.get('msg')}", file=sys.stderr)
         sys.exit(1)
     sub = str(data.get("subCode") or "0")
     if sub not in ("0", ""):
         hint = SUB_CODES.get(sub, "")
         suffix = f" ({hint})" if hint else ""
+        if not strict:
+            return {"_error": {"label": label, "subCode": sub, "hint": hint, "msg": data.get("msg")}}
         print(
             f"error: {label} failed, subCode={sub}{suffix}, msg={data.get('msg')}",
             file=sys.stderr,
@@ -244,7 +251,14 @@ def check_result(raw: str, *, label: str) -> Any:
     return data.get("data")
 
 
-def call(cfg: dict[str, str], endpoint: str, method: str, business: dict[str, Any]) -> Any:
+def call(
+    cfg: dict[str, str],
+    endpoint: str,
+    method: str,
+    business: dict[str, Any],
+    *,
+    strict: bool = True,
+) -> Any:
     params = common_params(cfg, method)
     params.update({k: v for k, v in business.items() if v is not None})
     params["sign"] = sign_params(params, cfg["access_secret"])
@@ -255,7 +269,7 @@ def call(cfg: dict[str, str], endpoint: str, method: str, business: dict[str, An
         data=body,
         timeout=120,
     )
-    return check_result(raw, label=method)
+    return check_result(raw, label=method, strict=strict)
 
 
 def call_upload(
@@ -374,12 +388,33 @@ def cmd_doctor(cfg: dict[str, str], args: argparse.Namespace) -> None:
         "apkExists": apk.is_file(),
     }
     if cfg["access_key"] and cfg["access_secret"]:
-        report["appDetail"] = call(
+        # doctor 的职责是诊断，不能因为业务错误就崩掉——凭据是否可用、
+        # 应用在不在账号下，恰恰是它要回答的两个问题。strict=False 让
+        # 业务错误以数据形式返回而不是 sys.exit。
+        detail = call(
             cfg,
             ENDPOINTS[args.env],
             "app.query.details",
             {"packageName": cfg["package_name"]},
+            strict=False,
         )
+        err = detail.get("_error") if isinstance(detail, dict) else None
+        if err:
+            report["appDetail"] = None
+            report["appQueryError"] = err
+            # 能拿到业务错误码，说明签名与鉴权本身已经通过
+            report["credentialsOk"] = "subCode" in err or "code" in err
+            report["appExists"] = False
+            if str(err.get("subCode")) in ("11011", "11001", "12002"):
+                report["hint"] = (
+                    "凭据没问题，但开发者账号下还没有这个应用。vivo 的 API "
+                    "不能建应用——首次上架必须先在开放平台控制台创建并完整上架一次，"
+                    "之后才能用本脚本做版本更新。"
+                )
+        else:
+            report["appDetail"] = detail
+            report["credentialsOk"] = True
+            report["appExists"] = True
     dump(report)
 
 

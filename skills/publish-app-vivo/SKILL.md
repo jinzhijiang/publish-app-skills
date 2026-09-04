@@ -15,7 +15,10 @@ description: Publish APK updates to the vivo 应用商店 through the API 传包
 
 ## 前置条件
 
-1. 已在 vivo 开放平台创建应用并至少完整上架过一次。
+1. 已在 vivo 开放平台**创建应用**（API 建不了应用，必须在控制台 `/appCreate` 填包名与主副标题）。
+   ~~并至少完整上架过一次~~——**这条不成立**：应用创建完成后 API 立即可用，
+   `saleStatus=0`（未上架）不影响查询、传包、传图标、传截图。首次上架流程见
+   [references/first-launch.md](references/first-launch.md)。
 2. 管理中心 → 账号管理 → api管理 → 立即开通，拿到 `access_key` 与 `access_secret`。
    一次申请，账号下所有应用都能用。
 3. 已构建并签名 `vivo` 渠道 APK；渠道名见 `docs/应用发布平台清单.md`。
@@ -121,6 +124,12 @@ python3 "$PY" --env sandbox detail
 例如 `--set rateAge=12`。
 
 ## 注意事项
+
+- **首次上架必须先在控制台上传版权证明**，否则 `app.sync.update.app` 返回
+  `subCode=20037 请提供版权证明`。API **没有**上传资质的 method（只有 apk / icon / screenshot）。
+- **文案长度比华为、OPPO 都紧**：`updateDesc` 5~200 字符、`detailDesc` 50~1000 字符。
+  多平台发版时 vivo 要单独准备一份，别拿华为那份 8000 字上限的文案直接投。
+- `subCode=11011 开发者账号不存在该应用` 不是凭据问题，是应用还没在控制台建出来。
 
 - `versionCode` 默认取上传接口从 APK 里解析出来的值，不用手填；两者不一致会报 `15012`。
 - 和 OPPO 不同，vivo 的更新接口**只更新你传的字段**，没传的资料保留，所以常规发版只要
