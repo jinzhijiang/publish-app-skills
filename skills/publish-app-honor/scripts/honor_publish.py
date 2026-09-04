@@ -373,22 +373,34 @@ def merged_language_info(
     token: str,
     app_id: int,
     *,
-    new_feature: str,
+    new_feature: str | None,
     language_ids: list[str],
+    app_name: str | None = None,
+    intro: str | None = None,
+    brief_intro: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Re-post existing language info with only newFeature changed.
+    """Build the full PubLanguageInfo list for update-language-info.
 
-    update-language-info requires the full PubLanguageInfo, so blindly sending
-    just newFeature would blank out appName/intro.
+    The endpoint requires appName and intro on every entry, so an update that
+    only wants to change newFeature must carry the existing copy back — that is
+    what the no-override path does.
+
+    First launch has no existing languageInfo at all (only appName, set when the
+    app was created on the console). Then the caller must supply `intro` via
+    override; appName/briefIntro fall back to whatever the console already has.
     """
     detail = api_get(token, "get-app-detail", {"appId": app_id}, label="get-app-detail") or {}
     existing = detail.get("languageInfo") or []
-    if not existing:
+    if not existing and intro is None:
         print(
-            "error: app has no existing language info; set appName/intro on the console first",
+            "error: app has no existing language info. First launch must supply the "
+            "required intro: --intro / --intro-file (appName defaults to the console value).",
             file=sys.stderr,
         )
         sys.exit(1)
+    if not existing:
+        # 首发：控制台建应用时只落了 appName，languageInfo 还是空的
+        existing = [{"languageId": lid, "appName": app_name or "", "intro": ""} for lid in language_ids]
     targets = set(language_ids)
     out: list[dict[str, Any]] = []
     for item in existing:
@@ -397,10 +409,10 @@ def merged_language_info(
         out.append(
             {
                 "languageId": item.get("languageId"),
-                "appName": item.get("appName"),
-                "intro": item.get("intro"),
-                "briefIntro": item.get("briefIntro") or "",
-                "newFeature": new_feature,
+                "appName": app_name or item.get("appName"),
+                "intro": intro if intro is not None else item.get("intro"),
+                "briefIntro": brief_intro if brief_intro is not None else (item.get("briefIntro") or ""),
+                "newFeature": new_feature if new_feature is not None else (item.get("newFeature") or ""),
             }
         )
     if not out:
@@ -559,16 +571,89 @@ def cmd_language(cfg: dict[str, str], args: argparse.Namespace) -> None:
             }
         )
         return
+    def _text(inline: str | None, path: str | None, label: str) -> str | None:
+        if inline and path:
+            print(f"error: pass only one of --{label} / --{label}-file", file=sys.stderr)
+            sys.exit(2)
+        if path:
+            f = Path(path).expanduser()
+            if not f.is_file():
+                print(f"error: {label} file not found: {f}", file=sys.stderr)
+                sys.exit(2)
+            return f.read_text(encoding="utf-8").strip()
+        return inline
+
+    intro = _text(args.intro, args.intro_file, "intro")
+    brief = _text(args.brief_intro, args.brief_intro_file, "brief-intro")
+    if not any([args.new_feature, args.app_name, intro, brief]):
+        print(
+            "error: nothing to update: pass at least one of --new-feature / --app-name / "
+            "--intro(-file) / --brief-intro(-file)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     token = get_access_token(cfg)
     app_id = resolve_app_id(token, cfg, args.app_id)
     info = merged_language_info(
-        token, app_id, new_feature=args.new_feature, language_ids=language_ids
+        token,
+        app_id,
+        new_feature=args.new_feature,
+        language_ids=language_ids,
+        app_name=args.app_name,
+        intro=intro,
+        brief_intro=brief,
     )
     body = {"languageInfoList": info, "setAll": args.set_all}
     api_post(
         token, "update-language-info", body, {"appId": app_id}, label="update-language-info"
     )
     dump({"appId": app_id, "updated": [i["languageId"] for i in info]})
+
+
+def cmd_app_info(cfg: dict[str, str], args: argparse.Namespace) -> None:
+    """update-app-info：只提交显式给出的字段。
+
+    这个接口没有"先读回再整体回传"的必要——实测未提交的字段保持原值。
+    字段名与 get-app-detail 的 basicInfo 同名，不确定某个字段叫什么时先跑
+    `detail` 看键名，别猜。
+    """
+    fields: dict[str, Any] = {}
+    for cli, key in (
+        ("privacy_policy_url", "privacyPolicyUrl"),
+        ("web_url", "webUrl"),
+        ("customer_service_email", "customerServiceEmail"),
+        ("customer_service_tel", "customerServiceTel"),
+        ("rating_id", "ratingId"),
+        ("release_country", "releaseCountry"),
+        ("app_registration_number", "appRegistrationNumber"),
+        ("app_registration_entity_name", "appRegistrationEntityName"),
+        ("unified_social_credit_id", "unifiedSocialCreditId"),
+        ("publication_number", "publicationNumber"),
+    ):
+        v = getattr(args, cli, None)
+        if v:
+            fields[key] = v
+    for pair in args.set or []:
+        if "=" not in pair:
+            print(f"error: --set expects key=value, got {pair!r}", file=sys.stderr)
+            sys.exit(2)
+        k, _, v = pair.partition("=")
+        fields[k.strip()] = v
+    if not fields:
+        print(
+            "error: nothing to update. Pass --privacy-policy-url / --web-url / ... "
+            "or --set key=value (键名见 `detail` 的 basicInfo)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if args.dry_run:
+        dump({"endpoint": "update-app-info", "appId": dry_app_id(cfg, args.app_id), "body": fields})
+        return
+    token = get_access_token(cfg)
+    app_id = resolve_app_id(token, cfg, args.app_id)
+    api_post(token, "update-app-info", fields, {"appId": app_id}, label="update-app-info")
+    dump({"appId": app_id, "updated": sorted(fields)})
 
 
 def cmd_submit(cfg: dict[str, str], args: argparse.Namespace) -> None:
@@ -764,12 +849,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bind.add_argument("--dry-run", action="store_true")
 
-    language = sub.add_parser("language", help="Update newFeature, keeping existing copy intact")
+    language = sub.add_parser(
+        "language",
+        help="更新多语言文案。默认只改 newFeature 并保留既有 appName/intro；"
+             "首发时用 --intro(-file) 补上必填的应用介绍",
+    )
     language.add_argument("--app-id")
-    language.add_argument("--new-feature", required=True)
+    language.add_argument("--new-feature", help="新版本特性，≤500 字符")
+    language.add_argument("--app-name", help="应用名称，≤15 汉字/30 其他字符")
+    language.add_argument("--intro", help="应用介绍，≤8000 字符（首发必填）")
+    language.add_argument("--intro-file", help="从文件读取应用介绍")
+    language.add_argument("--brief-intro", help="一句话简介，≤80 字符")
+    language.add_argument("--brief-intro-file", help="从文件读取一句话简介")
     language.add_argument("--language-id", action="append")
     language.add_argument("--set-all", type=int, default=0, choices=[0, 1])
     language.add_argument("--dry-run", action="store_true")
+
+    info = sub.add_parser("app-info", help="更新应用基础信息（隐私政策、备案、分级等）")
+    info.add_argument("--app-id")
+    info.add_argument("--privacy-policy-url")
+    info.add_argument("--web-url")
+    info.add_argument("--customer-service-email")
+    info.add_argument("--customer-service-tel")
+    info.add_argument("--rating-id", help="年龄分级 id（取值以荣耀文档为准，勿猜）")
+    info.add_argument("--release-country")
+    info.add_argument("--app-registration-number", help="APP 备案号")
+    info.add_argument("--app-registration-entity-name", help="备案主体名称")
+    info.add_argument("--unified-social-credit-id", help="统一社会信用代码")
+    info.add_argument("--publication_number", dest="publication_number")
+    info.add_argument("--set", action="append", metavar="key=value", help="任意 basicInfo 字段")
+    info.add_argument("--dry-run", action="store_true")
 
     submit = sub.add_parser("submit", help="Submit the app for audit")
     submit.add_argument("--app-id")
@@ -827,6 +936,7 @@ def main() -> None:
         "upload": cmd_upload,
         "bind": cmd_bind,
         "language": cmd_language,
+        "app-info": cmd_app_info,
         "submit": cmd_submit,
         "audit-status": cmd_audit_status,
         "phased-info": cmd_phased_info,

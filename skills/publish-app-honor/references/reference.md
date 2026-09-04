@@ -72,6 +72,38 @@ Body：`type`（`1` 创建上传任务 / `2` 查询上传结果）、`uploadList
 
 返回项含 `status`：`0` 上传成功、`1` 待上传、`2` 上传失败（失败原因在 `message`）。
 
+### update-app-info
+
+**整体覆盖，不是增量。** 只传要改的字段会报 `20034 app supply name is empty`
+这类"必填为空"——未提交的必填字段被判空。正确做法是先 `get-app-detail`，
+把已有必填项一并带上再改想改的。（vivo 恰好相反，它只更新你传的字段，别记混。）
+
+字段名与 `get-app-detail` 的 `basicInfo` **同名**。不确定某个字段叫什么时，
+先跑 `detail` 看键名，别猜。
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `appCategoryId` | 是 | `1` 游戏 / `2` 应用 |
+| `appClassification` | 是 | **只传三级分类 id** |
+| `packageName` / `defaultLanguage` | 是 | 与建应用时一致 |
+| `devName` / `supplyName` | 是 | 开发者/供应商名称，devName 不可改 |
+| `releaseCountry` | 是 | 多个用 `|` 分隔，如 `CN|JP|DE` |
+| `paymentInfo` | 是 | `1` 非联运 / `2` 联运 |
+| `ratingId` | 是 | 年龄分级，取值 **3 / 8 / 12 / 16 / 18**（原 7 映射成 8） |
+| `privacyPolicyUrl` | 是 | http(s) 网址 |
+| `appRegistrationEntityStatus` | 分发含中国大陆则必填 | `1` 备案主体与账号主体一致 / `2` 不一致 / `3` 单机应用无需备案 |
+| `unifiedSocialCreditId` | 同上 | 18 字符以内 |
+| `appRegistrationNumber` / `appRegistrationEntityName` | 否 | 主动输入的备案号与主体名 |
+| `webUrl` / `customerServiceEmail` / `customerServiceTel` | 否 | 客服电话纯数字 ≤20 字符 |
+| `publicationNumber` | 中国大陆 + 游戏才必填 | 版号 |
+
+#### 应用分类（三级 id，2026-09-04 从官方文档取）
+
+一级 `-1` 软件 / `-2` 游戏；二级如 `112` 金融理财、`110` 商务、`101` 实用工具、`114` 便捷生活。
+三级只列本类常用：**`11205` 记账**、`11204` 理财、`11002` 效率、`11003` 笔记、
+`10105` 工具、`11407` 日历。完整表见
+[API传包服务指引](https://developer.honor.com/cn/doc/guides/101359) 的「应用分类表」。
+
 ### update-language-info
 
 | 字段 | 必选 | 说明 |

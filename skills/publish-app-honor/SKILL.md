@@ -107,7 +107,8 @@ python3 "$PY" audit-status --release-id <releaseId>
 | `current-release` | 查询最新版本号与审核状态 |
 | `upload` | 上传单个文件（APK、图标、截图、资质等），返回 `objectId` |
 | `bind` | 把 `objectId` 绑定到应用；参数格式 `objectId[:languageId[:order]]` |
-| `language` | 只改新版本特性，自动继承已有 `appName` / `intro` |
+| `app-info` | 更新应用基础信息：分类、年龄分级、发布国家、隐私政策、备案。**整体覆盖**，需带齐必填字段 |
+| `language` | 更新多语言文案。默认只改 `newFeature` 保留既有文案；首发用 `--intro(-file)` 补必填的应用介绍 |
 | `submit` | 提交审核，返回 `releaseId` |
 | `audit-status` | 按 `releaseId` 查审核结论与审核意见 |
 | `phased-info` | 查询分阶段发布状态 |
