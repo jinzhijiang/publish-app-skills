@@ -13,7 +13,7 @@
 | 每日上传文件 | ≤100 次/用户 |
 | 每日更新提交 | ≤50 次/用户 |
 
-**限制**：仅已上架应用的版本/信息更新；不支持新应用首发；仅主账号（子账号不可用）。
+**限制**：仅已上架应用的版本/信息更新；不支持新应用首发；仅主账号（子账号不可用）。首发前的表现与控制台流程见 [first-launch.md](first-launch.md)。
 
 ## 签名算法
 
@@ -61,6 +61,26 @@
 
 双包时额外传 `apk32_flag=1`、`apk32_file_serial_number`、`apk32_file_md5`。
 
+> 脚本的 `update` / `publish` 只提交上表字段（外加可选 `deploy_time`），**不提交 `introduce` 等文案字段**。
+> 官方 `update_app` 是否支持改应用介绍尚未核实，封装前先查 wiki。
+
+### `query_app_detail` 回读字段（2026-09-11 实测）
+
+| 字段 | 示例 / 说明 |
+|---|---|
+| `app_id` / `pkg_name` / `app_name` | 基础标识 |
+| `version_name` / `version_code` | 最近一次提交的版本 |
+| `category` | 分类 ID，如 `17` |
+| `age_level` | 年龄分级，如 `12` |
+| `operator` / `developer` | 运营 / 开发主体名称 |
+| `introduce` | 应用介绍，**上限 500 字，超出被截断** |
+| `one_word_summary` | 一句话简介 |
+| `feature` | 版本更新说明 |
+| `login_flag` / `login_account` | 是否需登录；**`login_account` 明文含测试账号密码** |
+| `app_type` / `device_type` / `pay_type` / `demo_video_flag` / `screen_size` / `language` / `is_support_ipv6` | 枚举值，含义以官方 wiki 为准 |
+
+回读里**没有审核状态或上架状态字段**；审核状态只能用 `query_app_update_status`，且只覆盖经 API 提交的更新。
+
 ### 审核状态
 
 | audit_status | 含义 |
@@ -74,6 +94,9 @@
 
 | ret | 说明 |
 |---|---|
+| 1000005 | `pkg_name` 为空（必填） |
+| 1000006 | `app_id` 为空（必填） |
+| 1000009 | 「请求pkg_name与app_id不匹配」——**兜底码**：首发前所有接口都返回；编造的 app_id 也返回同一个码，不能据此判断哪个参数错 |
 | 1000019 | 未申请 access_secret |
 | 1000020 | 签名校验失败 |
 | 1000011 | 应用尚未上架 |
@@ -82,5 +105,6 @@
 | 4000040 | 未传 apk64_file_md5 |
 | 4000043 | 未查到文件上传记录 |
 | 4000053 | 提交审核失败（见 msg） |
+| 5000002 | 未查询到应用审核信息：该应用没有经 API 提交过更新（首发走控制台时即如此） |
 
 完整错误码见官方 wiki §5。

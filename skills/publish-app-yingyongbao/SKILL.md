@@ -11,7 +11,8 @@ disable-model-invocation: true
 通过腾讯应用宝 **API更新应用信息** 接口提交已上架应用的 APK 版本更新，无需手动登录控制台上传。
 
 官方文档：[wiki 4015262492](https://wikinew.open.qq.com/index.html#/iwiki/4015262492)  
-详细 API / 错误码：[reference.md](reference.md)
+详细 API / 错误码：[references/reference.md](references/reference.md)  
+首次上架（API 做不了，控制台流程与实测坑）：[references/first-launch.md](references/first-launch.md)
 
 ## 何时使用
 
@@ -22,7 +23,7 @@ disable-model-invocation: true
 ## 前置条件
 
 1. **主账号**（子账号不支持 API）
-2. 应用**已在应用宝上架**（API 不支持新应用首发）
+2. 应用**已在应用宝提交过首发**（API 不支持新应用首发；首发前所有接口都返回 `1000009`，见 [references/first-launch.md](references/first-launch.md)）
 3. 在开放平台 **账户管理 → API发布接口** 申请开通，获取 `access_secret`
 4. 在 **安卓应用管理 → 应用首页** 查看 `app_id` 与 `pkg_name`
 5. 已安装 Python 3；脚本路径：`$SKILL_DIR/scripts/yingyongbao_publish.py`
@@ -160,21 +161,26 @@ python3 "$PY" status
 | `missing credentials` | 配置 `config.env` 或 export 环境变量 |
 | ret=1000019 | 未申请 API 密钥，去控制台开通 |
 | ret=1000020 | 签名错误，检查 access_secret 是否最新 |
+| ret=1000009 | **兜底码，不代表包名填错**：首发前所有接口都报它，编造的 app_id 也报它。先确认已在控制台完成首发，见 first-launch.md |
 | ret=1000011 | 应用未上架，API 仅支持更新 |
 | ret=1000012 | 非主账号或无权限 |
 | ret=4000053 | 审核提交失败，读 `msg`；常见为缺少测试账号、版本号未递增 |
+| ret=5000002（`status`） | 没有经 API 提交过的审核单。首发走控制台时属正常，首发结果只能看控制台 |
 | COS 上传超时 | 大包体增大 `--poll-timeout` 无关；上传超时在脚本内默认 300s |
 
 ## 注意事项
 
 - **无沙盒环境**：`publish` 会真实提交审核；调试可用 `--dry-run`
 - 审核中可在控制台撤回；API 不提供撤回接口
+- `query-detail` 会**明文回显 `login_account`**（审核测试账号与密码），日志外发前先脱敏
+- 应用介绍 `introduce` 实测 **≤500 字**，超出部分被截断；脚本的 `update` 目前不提交 `introduce`
 - 仅更新 APK 时不必重传 icon/截图/软著（字段留空 = 不变更）
 - 64 位单包场景：`publish` 默认 `apk64_flag=1`；32/64 双包用 `update --apk32 ... --apk64 ...`
 - 与本项目 VasDolly 渠道名 `yingyongbao` 对应，见 `android/channel.txt`
 
 ## 相关文档
 
+- 首次上架：[references/first-launch.md](references/first-launch.md)
 - 手动控制台流程：[references/workflow.md](references/workflow.md)
 - 平台总览：`docs/应用发布平台清单.md`
 - 多渠道打包：[vasdolly-multi-channel-apk](../vasdolly-multi-channel-apk/SKILL.md)
