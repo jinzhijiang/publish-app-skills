@@ -17,6 +17,7 @@ description: Prepare and publish Android APK updates to the 360 Mobile Open Plat
 - 包名：`C360_PACKAGE_NAME`（即调用方项目的 applicationId）
 - 渠道名：`c360`
 - 实测页面、字段和选择器：[references/workflow.md](references/workflow.md)
+- 首次上架（创建软件入口、表单字段契约、自动化的坑）：[references/first-launch.md](references/first-launch.md)
 - 更新说明唯一来源：`docs/发布版本更新日志.md`
 - 平台能力与渠道定义：`docs/应用发布平台清单.md`
 

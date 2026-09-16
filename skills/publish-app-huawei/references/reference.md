@@ -156,9 +156,13 @@ The response commonly includes `pkgVersion`; keep it in the command output becau
 | `7` | 传包 + 改文案之后、提审之前（草稿有待提交变更） |
 | `5` | **Android** 提交审核后 |
 | `12` | **HarmonyOS** 提交审核后 |
+| `8` | **HarmonyOS** 审核驳回后：`auditOpinion` 带驳回原因，`onShelfVersion*` 保持旧版本（2026-09-11 实测） |
 
 两端提审后的取值**不一样**，别用同一个常量判断。这些是实测观察，不是华为公开文档的枚举，
-新场景（定时发布、分阶段发布、驳回）可能有别的值——遇到就补进本表。
+新场景（定时发布、分阶段发布、Android 端驳回）可能有别的值——遇到就补进本表。
+
+审核通过并发布后回到 `0`，同时 `onShelfVersion*` 更新为新版本（2026-09-04 Android 实测）；
+驳回则变成 `8`（HarmonyOS 实测），`onShelfVersion*` 不变。所以提审后要看它**变成了几**，别只判断「不再是 5/12」。
 
 判断「已上架」看 `onShelfVersionNumber` / `onShelfVersionCode`，
 它们在提审后**不会变**，只有审核通过发布后才更新。
