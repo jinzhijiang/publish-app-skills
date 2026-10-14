@@ -160,7 +160,8 @@ API 留给之后的版本更新。右侧固定导航的 `icon-a-success` / `icon
 控制台上传框走的是原生 file input，而浏览器自动化工具的直传通常有 10MB 上限
 （本次实测：图标 344KB、截图 5 张合计 6.9MB 都能直传，27.9MB 的 APK 不行）。
 
-用 `chrome-file-upload-bridge`：本地起 CORS 静态服务，页面自己 fetch 到字节，
+现在默认用 `chrome-file-upload`（opencli 驱动主 Chrome，分块写入页面再注入，任意大小、不碰本地网络权限）。
+以下是当时用的旧方案（原 `chrome-file-upload-bridge`）：本地起 CORS 静态服务，页面自己 fetch 到字节，
 再用 `DataTransfer` 塞进 input。**关键坑**——Chrome 的 Private Network Access
 会**静默挂起**第一个 HTTPS 页面发往 `127.0.0.1` 的请求：
 

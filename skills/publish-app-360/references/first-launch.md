@@ -49,7 +49,9 @@
 - **文本框**：用原生 value setter 赋值，再派发 `input` / `keyup` / `change`，页面计数会同步更新。
   长文案放进上传桥目录，页面内 `fetch('http://127.0.0.1:8912/<file>.txt')` 取回再填，
   不必把上千字塞进脚本参数。
-- **上传桥**（`chrome-file-upload-bridge`）在 `dev.360.cn` 上可用：HTTPS → `127.0.0.1` 请求放行后直接拿到文件。
+- **上传**：默认用 `chrome-file-upload`（opencli 驱动主 Chrome，分块写入页面再注入，不依赖本地网络权限）。
+  旧的本地 CORS 服务方案（原 `chrome-file-upload-bridge`）在 `dev.360.cn` 上也可用：HTTPS → `127.0.0.1` 请求放行后直接拿到文件，
+  但只在 chrome-devtools MCP / Claude in Chrome 下成立，主 Chrome 里会 `Failed to fetch`。
 - **App 自带的浏览器面板用不了上传桥**：同样的请求立刻 `Failed to fetch`，服务端日志里收不到，
   说明在浏览器内部就被拦了。自动上传必须走 Chrome 扩展。
 - **脚本返回值**含 URL / 查询串时会被扩展拦成 `[BLOCKED: Cookie/query string data]`：只回传 pathname 和参数名。

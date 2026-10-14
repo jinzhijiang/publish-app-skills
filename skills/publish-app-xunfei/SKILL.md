@@ -9,7 +9,11 @@ description: Publish APK updates to the 科大讯飞AI学习机应用中心开�
 
 通过 Chrome 为目标应用上传 `xunfei` 渠道 APK、走完三步上架向导并提交讯飞审核。讯飞**没有官方发版 API**，必须以实时控制台页面为准。
 
-44MB 渠道包无法用浏览器工具直传，本 skill 自带上传 harness：
+**上传默认用 `chrome-file-upload` skill**：opencli 驱动用户主 Chrome，把 APK 分块写进页面、核对 SHA-256 后注入
+`input.el-upload__input`，不依赖文件选择框，也不碰本地网络权限。下面的 harness 只在没有 opencli、
+只能用 chrome-devtools MCP / Claude in Chrome 时备用（主 Chrome 里 fetch 127.0.0.1 会直接 `Failed to fetch`）。
+
+44MB 渠道包无法用浏览器工具直传，备用的上传 harness：
 `$SKILL_DIR/scripts/cors_upload_server.py`（`$SKILL_DIR` 指本 skill 目录）。
 
 > **前提：Chrome 必须为该控制台站点放行本地网络访问。** 没放行时 `fetch('http://127.0.0.1:8765/…')`
