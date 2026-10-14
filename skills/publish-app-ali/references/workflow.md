@@ -25,6 +25,21 @@
 > 或在其常用 Chrome（无自动化标记）里手动完成本 skill 的上传与提交。claude-in-chrome 扩展复用的是
 > 用户自己的 Chrome，不受此影响。
 
+## 已有应用更新路径（2026-10-14，opencli + 主 Chrome 跑通 3.6.0）
+
+- 主 Chrome（`navigator.webdriver=false`）登录淘宝滑块正常。上传按 `chrome-file-upload` skill 做。
+- 入口：应用列表行只有「应用管理」→ 详情页 `/app/detail/index?appId=…` →「编辑更新」→ `/editapp?appId=…&cptype=8`。
+  列表上的「创建软件」、详情页的「申请下线」都不要碰。
+- 表单顶部「上传安装包」显示上一版解析结果，旁边「重新上传」对应 `input#fileupload`（accept `.apk`），注入新包即可替换；
+  解析区刷新为 `包名 / 签名（证书指纹）/ 版本代号 / 版本名 / 包大小`，签名指纹应与上一版一致。页面不显示 APK MD5。
+- 截图位 `#shot1`–`#shot5`，电子版权证书 `#electronicFile`（PDF）、证明材料 `#copyRightFile`、安全评估报告 `#safeReportFile`。
+- 「新版特征」上限 1000 汉字。两条 SDK 声明：安装包下方必选的 `#sdkCheckbox`（无风险违规 SDK 自查），
+  表单底部二选一 `interceptOption`（`1` 已更新/更换为合规 SDK，`2` 未更新更换）。
+- 提交按钮是 `span#submit`（jQuery 绑定）。点击后**可能弹「您的应用被检测出风险SDK」层**（不说是哪个 SDK，
+  明示「不影响应用上架和审核」），要再选「已更新至合规版本 / 已更换至其他合规的SDK / 自查无风险」之一才真正提交——
+  这是新的声明，必须由发布人选。该弹层用普通 dialog 选择器读不到，截图才看得见。
+- 提交后回到应用列表显示「审核中」，接口 `auditStatus=0`、`isOnline=0`、`versionName` 换成新版本。
+
 每次先从首页的“软件发布”链接进入；不要依据历史应用 ID、标签页或网络请求拼接更新地址。若页面没有明确显示既有应用的更新流程，暂停并请账号持有人确认，避免创建重复应用。
 
 ## 表单合同
