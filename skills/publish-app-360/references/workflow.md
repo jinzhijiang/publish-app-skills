@@ -207,4 +207,26 @@
 - 当前版本介绍限制为 10–400 字符；“风险 SDK 自查”原文是独立的合规声明，不能从已登录 Chrome 会话或 APK 上传推定同意。
 - 登录会话、Cookie、令牌、动态上传地址、请求头和网络接口均不写入本仓库，也不用于本地 API 调用。
 
-*最后更新：2026-09-01*
+## 2026-10-14 实时补充（用 chrome-devtools MCP 跑通）
+
+> 上传现在默认改用 `chrome-file-upload` skill（opencli + 主 Chrome 分块注入）；下面记录的 loopback harness
+> 是 chrome-devtools MCP 环境下的做法，仅作备用。
+
+- **chrome-devtools MCP 的 `upload_file` 传不了项目里的包**：它只允许读 MCP 配置的 workspace roots，
+  项目 `build/` 不在其中，报 `Access denied ... not within any of the configured workspace roots`
+  （`take_snapshot --filePath` 写 `/tmp` 或项目目录同样被拒）。改用 `publish-app-xunfei` 的
+  `scripts/cors_upload_server.py` loopback harness：页面内 `fetch('http://127.0.0.1:8765/c360-app-release.apk')`，
+  用 **iframe 自己的** `File` / `DataTransfer` / `Event` 构造，注入 `#uploadapk_btn input[type=file]` 并派发 `change`。
+  WebUploader 收到后照常上传，进度区出现「上传应用文件成功」，解析区刷新为新版本。
+- **第一次 fetch 会挂起，等用户放行本地网络访问**：`navigator.permissions.query({name:'local-network-access'})`
+  为 `prompt` 时 Chrome 在该标签页地址栏旁弹权限框，请用户点「允许」；变成 `granted` 后挂起的那次 fetch 会自己继续完成，
+  不用重发。页面拿到完整字节（`size` 等于本地 `stat -f%z`）后即可停 harness。
+- **审核辅助说明 `#apk_desc` 里存着测试账号和密码明文**。任何整页读取（`innerText`、a11y 快照、遍历 textarea）都会把它带出来。
+  读页面前先给它加 `aria-hidden="true"`（只影响快照，不改表单值），JS 读取时跳过这个字段。
+- 3.6.0 上传后「当前APK获取敏感隐私权限列表」（`ul.sensitive`）为空，原有「隐私权限说明」保留即可；
+  新增的 `SCHEDULE_EXACT_ALARM`、`POST_PROMOTED_NOTIFICATIONS`、厂商角标权限都没被列为敏感权限。
+- 风险 SDK 自查是 `input#sdk_check`（`name=sdk_check`）。a11y 树会把这段文字并进「发布时间」单选框的名字，
+  按 uid 点容易点错，用 id 定位。发布时间 `name=timed_pub`（`0` 立即），控量 `name=is_contr_vol`（`n` 否）。
+- 提交后 iframe 跳到 `/mod3/home/`，「审核中」+「检测中」+「撤销审核」三个信号同时出现即成功。
+
+*最后更新：2026-10-14*

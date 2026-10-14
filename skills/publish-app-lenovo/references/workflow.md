@@ -37,3 +37,22 @@
 - 联想没有开发者可用的官方发版 API；未来继续通过 Chrome 的当前页面操作。
 - 不记录或复用浏览器认证信息、动态上传地址和网络请求。
 - 实际字段、限制和状态名可能变化，以实时页面为准；将新增约束补回本文件。
+
+## 2026-10-14 实测（3.6.0，首次自主上传，opencli 驱动主 Chrome）
+
+- **更新入口**：列表行「更新」（`div.opt-btn`）跳到 `/developer/mgmt/appcreate?opt=3&type=1&submitId=<列表 submitId>&packageName=<包名>`。
+  面包屑写「创建应用」，但 `opt=3` + 列表里那条 `submitId` + 预填的既有资料说明这是更新流程，不会建新应用。
+- **上传方式**默认可能是「双包上传」；arm64 单包要先切「单包上传」，否则没有单个「上传APK」入口。上传后解析区显示
+  `包名 / CPU: 64 / 大小 / 版本`（不显示 versionCode），`APP备案号` 会被平台自动带出。
+- **旧资料要逐项看**：之前一直是合作渠道同步，表单里的截图、隐私网址、AI 声明、账号登录都是 2021 年首次上架的旧值
+  （截图是灰白手机样机老界面）。本次换成 `tools/store_screenshots/exports/android-phone-1080x1920/` 的 5 张（9:16、<2MB），
+  隐私网址改为官网，补 ICP 与软著（著作权证明只收图片）。
+- **截图位**：「应用截图」下 5 个 `.ant-upload` 各带一个隐藏 `input[type=file]`，往对应 input 注入文件即原位替换；
+  预览变 `data:` 地址，真实上传走 `getOssParam` → POST `app-img-lestore-adp…aliyuncs.com`，用 network 面板确认 200。
+- **「是否具备AI能力」选「是」会多出必填「AI能力描述」**（placeholder 要求写明是否付费）；「是否需要账号登录」选「是」
+  多出「测试账号」两个框，由发布人亲自填。只有一个「提交审核」按钮，没有草稿。
+- **提交后列表先显示「提交中」**：接口 `state=1`、`appSource=2`（自主上传，合作渠道同步是 `1`）、`submitId` 换新。
+  `state=5` = 已上架。
+- **文件上传用 `chrome-file-upload` skill**（opencli 分块写入 + SHA-256 校验 + 注入）。在联想上实测：`opencli browser upload` 对 antd 隐藏 input 弹不出选择框，主 Chrome 里 fetch 127.0.0.1 直接 `Failed to fetch`，分块注入 42MB APK 约 21 秒、哈希一致。
+- **opencli 自开标签页会被空闲回收**（会话租约 45s）：等发布人操作（登录、填账号、放行权限）期间要后台每 15s 发一次
+  `eval 'document.title'` 心跳，否则未保存的表单整页丢失。
