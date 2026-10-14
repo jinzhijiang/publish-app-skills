@@ -136,8 +136,11 @@ python3 "$PY" task-state --version-code 30004
 - `version_code` 必须严格大于线上版本，`version_name` 建议同步更新，否则报"版本低于线上版本"。
 - 应用正在审核中时不能再次提交。
 - **继承回来的 `adaptive_type` 不能原样提交**：`info` 返回 `"0"`（未设置的哨兵值），
-  回传会得到 `errno=911001 适配方式有误`。它不在必传字段里，发版时加 `--omit adaptive_type`
-  让平台沿用上一版即可。报错发生在 APK 上传成功**之后**，重跑会重新上传一次。
+  回传会得到 `errno=911001 适配方式有误`，所以总是加 `--omit adaptive_type`。
+  但 2026-10 起，`adaptive_equipment` 含平板（`5`/`6`）时省略它会报
+  `errno=911001 适配方式不能为空`：这时要按 App 真实情况声明（`1` 横竖屏自适应、`2` 平行视窗），
+  两者都不属实（如锁竖屏）就 `--set adaptive_equipment=4` 改成仅手机——会缩小分发范围，先和用户确认。
+  报错发生在 APK 上传成功**之后**，重跑会重新上传一次。
   详见 [references/reference.md](references/reference.md)。
 - 只改文案不换包用 `更新资料`（`/resource/v1/app/updm`）而不是发布版本；脚本暂未封装该接口，
   参数见 [references/reference.md](references/reference.md)。

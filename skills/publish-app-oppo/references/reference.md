@@ -103,6 +103,39 @@ python3 "$PY" publish --apk <apk> --update-desc "…" --omit adaptive_type
 真正需要声明大屏/折叠屏适配时才显式 `--set adaptive_type=<平台文档的有效值>`，
 不要从 `info` 的回显里抄。
 
+### `errno=911001 适配方式不能为空`：适配设备含平板时必须声明（2026-10-14 实测）
+
+上面「不提交 `adaptive_type`」的做法后来失效了：当 `adaptive_equipment` 是 `5`（平板）
+或 `6`（手机和平板）时，`--omit adaptive_type` 会被拒：
+
+```
+error: app/upd failed, errno=911001, message=适配方式不能为空
+```
+
+官方「发布版本」文档（doc_id 10999）仍把 `adaptive_type` 标成「非必传」，但实测已是
+「适配设备含平板 → 必填」。字段取值（同一文档）：
+
+| 字段 | 取值 |
+| --- | --- |
+| `adaptive_equipment`（必传） | `4` 手机、`5` 平板、`6` 手机和平板 |
+| `adaptive_type` | `1` 横竖屏自适应适配、`2` 平行视窗 |
+
+**`adaptive_type` 是对审核的适配声明，按 App 真实情况选，不要为了过接口随手填。**
+锁竖屏、没做平板适配的 App 两个值都不属实，应改成仅手机：
+
+```bash
+python3 "$PY" publish --apk <apk> --update-desc "…" \
+  --omit adaptive_type --set adaptive_equipment=4
+```
+
+改适配设备会影响分发范围（平板用户可能搜不到或装不了），属于产品决策，提交前先和用户确认。
+这条报错同样发生在 APK 上传之后，重跑会重新上传一次。
+
+> 官方文档页是前端渲染，WebFetch 抓不到正文。正文接口：
+> `POST https://open.oppomobile.com/oneoppoapi/doc/detail`，body `{"doc_id":10999}`，
+> 无需登录；`10997` 是 API 传包能力目录，`10998` 鉴权，`10999` 发布版本，
+> `11000` 更新资料，`11001` 任务状态，`11003` 文件上传，`11004` 查询应用详情。
+
 `apk_url` 是 JSON 字符串数组：
 
 ```json
