@@ -1,13 +1,13 @@
 ---
 name: publish-app-ali
-description: Prepare and publish Android APK updates to the Ali App Distribution Open Platform through Chrome, or query 阿里上架/审核状态 read-only via the console's own API. Use when working with 阿里应用分发开放平台 or 九游开放平台, uploading an ali VasDolly channel APK, checking whether a version is 已上架 / 审核中, reading online or parsed package/version and audit status, updating release notes or APK MD5, handling risk SDK or legal declarations, or submitting an app update for review.
+description: Launch new apps (创建软件 / 首次上架) and publish Android APK updates on the Ali App Distribution Open Platform by driving the user's main Chrome with opencli, or query 阿里上架/审核状态 read-only via the console's own API. Use when working with 阿里应用分发开放平台 or 九游开放平台, creating a new app, uploading an ali VasDolly channel APK, checking whether a version is 已上架 / 审核中, reading online or parsed package/version and audit status, updating release notes or APK MD5, handling risk SDK or legal declarations, or submitting an app update for review.
 ---
 
 # 阿里应用分发发布
 
 > 本文中形如 `docs/发布版本更新日志.md`、`docs/应用发布平台清单.md` 的路径，指的是**调用方项目**仓库里的文档（相对项目根），不是本 skill 目录里的文件；各项目按自己的约定放置即可。
 
-通过 Chrome 为目标应用更新阿里渠道 APK 并提交审核。阿里没有官方发布 API；只使用实时控制台，不编写或伪造上传 API。
+通过 opencli 驱动用户的主 Chrome，为目标应用首次上架或更新阿里渠道 APK 并提交审核。阿里没有官方发布 API；只使用实时控制台，不编写或伪造上传 API。
 
 ## 固定合同
 
@@ -21,6 +21,7 @@ description: Prepare and publish Android APK updates to the Ali App Distribution
 - 更新说明来源：`docs/发布版本更新日志.md`
 - 发布状态清单：`docs/应用发布平台清单.md`
 - 实测浏览器路由与字段约束：`references/workflow.md`
+- 首次上架（创建软件表单契约、opencli 自动化的坑）：`references/first-launch.md`
 
 上面的 `ALI_*` 取自**调用方项目**的配置，不写进本 skill：
 
@@ -34,41 +35,61 @@ cp "$SKILL_DIR/config.example.env" ~/.config/ai-ignore-config/<项目名>/ali.en
 
 不要固化历史 tab、详情 URL、APPID、控件顺序、版本号或文件摘要。每次都读取本地产物和实时页面。
 
+## 浏览器驱动：只用 opencli
+
+首次上架和版本更新都用 opencli 驱动用户自己的主 Chrome，不用 chrome-devtools MCP 或 Claude in Chrome：
+MCP 拉起的 Chrome 带 `navigator.webdriver`，淘宝登录滑块必判失败；主 Chrome 没有这个标记，也有发布人已有的登录态。
+会话名下文用 `ali`；`CFU` 指 `chrome-file-upload` skill 目录（部署后是 `~/.claude/skills/chrome-file-upload`）。
+
+```bash
+opencli doctor                                   # 需要 Extension: connected
+opencli browser ali open https://aliapp-open.9game.cn/app/mng/index
+```
+
+- **页面脚本**：`opencli browser ali eval '<IIFE>'`，返回 JSON 字符串；async IIFE 会等结果。
+- **上传**：一律 `chrome-file-upload` 分块注入，阿里的 file input 都有稳定 id（`#fileupload`、`#iconFile`、`#shot1`… 等）。
+- **表单控件**：原生 select 用 `opencli browser ali select`，单选用 `check`，文本用 `fill`。
+- **保活**：等发布人登录、勾声明、填证件号期间，后台起 `"$CFU/scripts/opencli_keepalive.sh" ali 60 &`；
+  没保存的表单约 45 秒空闲就会随标签页丢失。
+- **偶发 `attach_failed`**：别的扩展插了 iframe，隔 3 秒重试。
+- 收尾 `opencli browser ali close` 释放标签页。
+
 ## 0. 实时状态查询（只读，不必走完整发版流程）
 
 只想知道某版本上架到哪一步时用这一节，**不要**为了查状态去点页面读 DOM——
-阿里控制台是 SPA，`get_page_text` 在渲染完成前会返回空壳。
+阿里控制台是 SPA，页面文字在渲染完成前是空壳。
 
-做法：在 Chrome 里打开 `https://aliapp-open.9game.cn/app/mng/index`（已登录），
-用 `javascript_tool` 在该标签页执行下面这段。
+做法：`opencli browser ali open https://aliapp-open.9game.cn/app/mng/index`（已登录），再执行：
 
-```js
-const r = await fetch('/app/mng/packlist', {
-  method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: ''
-});
-if (r.redirected || !(r.headers.get('content-type')||'').includes('json')) { 'SESSION_EXPIRED'; }
-const j = await r.json();
-if (j.success !== true) { 'SESSION_EXPIRED or API error'; }
-const KEEP = ['appId','appName','packName','versionName','auditStatus',
-              'isOnline','isPushed','isOffline','updateTime'];
-const rows = ((j.data && j.data.appList) || []).map(o => Object.fromEntries(KEEP.map(k => [k, o[k]])));
-JSON.stringify({ code: j.state && j.state.code, total: j.data && j.data.pageUtil && j.data.pageUtil.recordCount, rows });
+```bash
+opencli browser ali eval "(async () => {
+  const r = await fetch('/app/mng/packlist', {
+    method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: ''
+  });
+  if (r.redirected || !(r.headers.get('content-type') || '').includes('json')) return 'SESSION_EXPIRED';
+  const j = await r.json();
+  if (j.success !== true) return 'SESSION_EXPIRED or API error';
+  const KEEP = ['appId', 'appName', 'packName', 'versionName', 'auditStatus',
+                'isOnline', 'isPushed', 'isOffline', 'updateTime'];
+  const rows = ((j.data && j.data.appList) || []).map(o => Object.fromEntries(KEEP.map(k => [k, o[k]])));
+  return JSON.stringify({ code: j.state && j.state.code, total: j.data && j.data.pageUtil && j.data.pageUtil.recordCount, rows });
+})()"
 ```
 
 body 传空字符串即可，无需分页参数。**返回值必须白名单裁剪**（上面的 `KEEP`）：
 `appList` 行内含 `iconUrl` 等字段，整包回传会被 Chrome 扩展拦成
 `[BLOCKED: Cookie/query string data]`。
 
-判定口径（2026-09-02 实测）：
+判定口径：
 
 | 字段 | 含义 |
 | --- | --- |
 | `isOnline` | **上架标志，判定已上架以此为准**（`1` = 已上架） |
-| `auditStatus` | `0` 对应页面「审核中」；`1` = 审核通过（已上线时实测，2026-10-14）；完整码表未知 |
+| `auditStatus` | `0` = 版本更新审核中（2026-09-02、10-14）；`1` = 审核通过（已上线时，2026-10-14）；`2` = 首发草稿「未提交」、`4` = 首发「审核中」（2026-10-15）；完整码表未知 |
 | `versionName` | 最近一次提交的版本名 |
 | `isPushed` / `isOffline` | 推送 / 下架标志 |
 
-`auditStatus` 只实测到 `0`、`1`，**不要单凭它判定**；以 `isOnline` 为准。遇到新码值补记到本节。
+`auditStatus` 在首发和更新时含义不同（同为「审核中」，首发是 `4`、更新是 `0`），**不要单凭它判定**；以 `isOnline` 和列表文字为准。遇到新码值补记到本节。
 
 会话失效信号：重定向到 `open.9game.cn/login`，或 `success !== true`。
 此时**请用户在该标签页自行登录**（淘宝账号 / 九游 / 豌豆荚三选一）后重试，
@@ -100,12 +121,13 @@ apksigner verify --verbose --print-certs \
 
 ## 2. 读取实时状态
 
-使用 `chrome:control-chrome` 复用用户指定且已登录的 Chrome 会话进入固定入口。登录、验证码、二次验证和协议登录动作交给用户亲自处理。
+用 opencli 复用用户已登录的主 Chrome 进入固定入口。登录、验证码、二次验证和协议登录动作交给用户亲自处理。
 
 不要读取、复制、记录或复述账号、密码、验证码、测试账号、证件号、备案号、服务器地址及其他敏感字段；这些字段保留实时页面原值，必须处理时让用户亲自完成。
 
 从实时页面定位目标应用，再以包名交叉确认。先读取当前线上版本、审核状态和版本记录：
 
+- 列表里没有目标包名时走首次上架：先读 [references/first-launch.md](references/first-launch.md)，从 `/addapp` 创建软件；不要拿别的应用的「编辑更新」顶替。
 - 同一 `versionCode` 已审核中或已上线时停止，不重复上传或提交；同时展示 `versionName` 供人工核对。
 - 同版本只有草稿、失败、被拒或已撤回记录时，不自动覆盖或重提；先读取状态和平台允许的恢复动作，展示差异并取得针对该恢复动作的新确认。
 - 本地 `versionCode` 不高于线上 `versionCode` 时停止并核查版本合同；页面未显示可比的版本号时也停止。
@@ -115,7 +137,14 @@ apksigner verify --verbose --print-certs \
 
 上传是独立的外部传输动作。操作前展示目标站点、APK 绝对路径、SHA-256、MD5、应用名、包名、版本名、版本号、渠道和签名核验结果；只有用户明确确认上传后才继续。
 
-使用 Chrome 可见文件上传控件和文件选择器上传已确认的绝对路径，不按历史坐标盲点，也不直接操作未经核对的隐藏输入。页面要求先删除或替换旧包时暂停；先区分对象是临时上传文件、未提交草稿、审核记录还是线上版本，并展示精确目标、可恢复性和线上影响，再为这一次删除或替换另取确认。
+用 `chrome-file-upload` 把已确认的绝对路径注入 `input#fileupload`（首发和「重新上传」都是它），不按历史坐标盲点：
+
+```bash
+python3 "$CFU/scripts/opencli_upload.py" --session ali --file "$APK" \
+  --expect-url aliapp-open.9game.cn --selector '#fileupload'
+```
+
+页面要求先删除或替换旧包时暂停；先区分对象是临时上传文件、未提交草稿、审核记录还是线上版本，并展示精确目标、可恢复性和线上影响，再为这一次删除或替换另取确认。
 
 上传完成后重新读取页面，核对平台解析的应用名、包名、版本名和版本号。页面展示或要求 APK MD5 时，与本地 32 位 MD5 对照；任何不一致都停止，不填写声明、不提交审核。
 

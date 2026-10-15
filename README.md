@@ -27,7 +27,7 @@ publish-app-skills/
 │   │   ├── SKILL.md
 │   │   ├── config.example.env        # 应用名/包名/AppID 等项目侧信息，同样按项目隔离
 │   │   └── references/workflow.md    # 平台实测：控制台路由、表单约束、选择器
-│   ├── publish-app-ali/              # 阿里应用分发 / 九游：同上
+│   ├── publish-app-ali/              # 阿里应用分发 / 九游：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-baidu/            # 百度：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-lenovo/           # 联想：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-samsung/          # 三星 Galaxy Store：同上
@@ -50,7 +50,7 @@ publish-app-skills/
 | `publish-app-xiaomi` | 自动发布 API | `xiaomi.env` | RSA 走系统 `openssl`，不引第三方库 |
 | `publish-app-yingyongbao` | open.qq.com API | `yingyongbao.env` | HmacSHA256 + COS 预签名上传 |
 | `publish-app-360` | 浏览器 | `360.env` | 无发版 API；状态可在已登录标签页内读接口 |
-| `publish-app-ali` | 浏览器 | `ali.env` | 同上 |
+| `publish-app-ali` | 浏览器（opencli 主 Chrome） | `ali.env` | 同上；含首次上架流程，上传走 `chrome-file-upload` |
 | `publish-app-baidu` | 浏览器（opencli 主 Chrome） | `baidu.env` | 同上，含 AI 合规声明字段；含首次上架流程，上传走 `chrome-file-upload` |
 | `publish-app-lenovo` | 浏览器（opencli 主 Chrome） | `lenovo.env` | 首次上架 + 版本更新，不含应用认领；上传走 `chrome-file-upload` |
 | `publish-app-samsung` | 浏览器 | `samsung.env` | 需英文默认商店资料；含拒审修复流程 |
