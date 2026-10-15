@@ -1,16 +1,20 @@
 ---
 name: publish-app-xunfei
-description: Publish APK updates to the 科大讯飞AI学习机应用中心开放平台 (xxj.xunfei.cn) through Chrome, and read 讯飞上架/审核状态 from the console page (this platform is the one exception that cannot be queried via its API — the request body is encrypted). Use when uploading the xunfei VasDolly channel APK, automating 讯飞应用市场发版, checking whether a version is 已上线 / 审核中, reading parsed package/version or audit status, replacing 版本说明 release notes, answering 年龄/学段/付费/广告 declarations, or submitting an app update for review on the iFlytek AI learning-machine app center.
+description: Launch new apps (创建应用 / 首次上架) and publish APK updates on the 科大讯飞AI学习机应用中心开放平台 (xxj.xunfei.cn) by driving the user's main Chrome with opencli, and read 讯飞上架/审核状态 from the console page (this platform is the one exception that cannot be queried via its API — the request body is encrypted). Use when creating a new app on 讯飞, uploading the xunfei VasDolly channel APK, automating 讯飞应用市场发版, checking whether a version is 已上线 / 审核中, reading parsed package/version or audit status, replacing 版本说明 release notes, answering 年龄/学段/付费/广告 declarations, or submitting an app update for review on the iFlytek AI learning-machine app center.
 ---
 
 # 科大讯飞应用市场发版
 
 > 本文中形如 `docs/发布版本更新日志.md`、`docs/应用发布平台清单.md` 的路径，指的是**调用方项目**仓库里的文档（相对项目根），不是本 skill 目录里的文件；各项目按自己的约定放置即可。
 
-通过 Chrome 为目标应用上传 `xunfei` 渠道 APK、走完三步上架向导并提交讯飞审核。讯飞**没有官方发版 API**，必须以实时控制台页面为准。
+通过 opencli 驱动用户的主 Chrome，为目标应用首次上架，或上传 `xunfei` 渠道 APK、走完三步上架向导并提交讯飞审核。讯飞**没有官方发版 API**，必须以实时控制台页面为准。首次上架（创建应用弹窗、两步表单契约、平台定位风险）见 [references/first-launch.md](references/first-launch.md)。
 
 **上传默认用 `chrome-file-upload` skill**：opencli 驱动用户主 Chrome，把 APK 分块写进页面、核对 SHA-256 后注入
-`input.el-upload__input`，不依赖文件选择框，也不碰本地网络权限。下面的 harness 只在没有 opencli、
+`input.el-upload__input`，不依赖文件选择框，也不碰本地网络权限。**注入后若文件停在 `is-ready`、进度 0%、没有任何上传请求，
+要调包住该 input 的 Element Plus `ElUpload` 实例的 `exposed.submit()` 才会真正上传**（2026-10-15 首发实测，
+APK、图标、截图、软著都要；代码见 first-launch.md「opencli 自动化做法与坑」）。
+等人操作期间用 `bash "$CFU/scripts/opencli_keepalive.sh" xunfei 120 &` 保活（`CFU` 指 `chrome-file-upload` skill 目录），
+再 `pgrep -fl 'opencli_keepalive.sh xunfei'` 确认在跑。下面的 harness 只在没有 opencli、
 只能用 chrome-devtools MCP / Claude in Chrome 时备用（主 Chrome 里 fetch 127.0.0.1 会直接 `Failed to fetch`）。
 
 44MB 渠道包无法用浏览器工具直传，备用的上传 harness：
@@ -104,6 +108,8 @@ java -jar "$VD" get -c "$APK"
 - 讯飞是 SPA，`get_page_text` 在渲染完成前会返回只有页脚的空壳。导航后至少等 6 秒再读，
   读到的内容里没有「普通应用 / 合作应用 / 应用认领」页签就是还没渲染完，再等，别当成没数据。
 
+列表里没有目标包名时走首次上架：按 [references/first-launch.md](references/first-launch.md) 从「创建应用」进入，并先把平台定位风险告诉发布人。
+
 把实时版本号与本地 APK 比较；本地版本不高于线上版本、同版本已在审核中或已上线时停止，不重复上传或提交。
 
 ### 为什么不接口化（2026-09-02 探查结论）
@@ -122,9 +128,13 @@ token:   localStorage.XUNFEIXXJ_APP_OPEN_PLATFORM_TOKEN
 
 若哪天讯飞改成明文接口，再按其余五家的 `## 0. 实时状态查询` 体例补一节。
 
-## 3. 上传 APK（harness）
+## 3. 上传 APK（默认 chrome-file-upload，下面的 harness 为备用）
 
 上传是独立对外传输动作。操作前展示目标站点、APK 绝对路径、大小、SHA-256、MD5、包名、版本和渠道，并取得**明确的上传确认**。
+
+**默认路径**：给弹窗里的 `input.el-upload__input` 打上 `data-cfu="apk"`，`python3 "$CFU/scripts/opencli_upload.py" --session xunfei --file "$APK" --expect-url xxj.xunfei.cn --selector '[data-cfu="apk"]'` 注入；
+列表项停在 `is-ready` 时再调 `ElUpload` 的 `submit()`（first-launch.md 里的 `SUBMIT_FOR`），然后跳到下面第 ⑤ 步核对解析结果。
+以下 ①–④ 是没有 opencli 时的备用 harness。
 
 在应用详情页点右上角「版本更新」打开弹窗，确认弹窗里存在 `input.el-upload__input`，然后：
 

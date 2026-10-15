@@ -31,7 +31,7 @@ publish-app-skills/
 │   ├── publish-app-baidu/            # 百度：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-lenovo/           # 联想：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-samsung/          # 三星 Galaxy Store：同上
-│   ├── publish-app-xunfei/           # 科大讯飞 AI 学习机：浏览器流程 + 自带大包上传 harness
+│   ├── publish-app-xunfei/           # 科大讯飞 AI 学习机：浏览器流程 + first-launch.md；自带大包上传 harness 备用
 │   │   └── scripts/cors_upload_server.py
 │   └── vasdolly-multi-channel-apk/   # 渠道包打包 CLI，上面 11 个 skill 都依赖它
 │       └── VasDolly.jar
@@ -54,7 +54,7 @@ publish-app-skills/
 | `publish-app-baidu` | 浏览器（opencli 主 Chrome） | `baidu.env` | 同上，含 AI 合规声明字段；含首次上架流程，上传走 `chrome-file-upload` |
 | `publish-app-lenovo` | 浏览器（opencli 主 Chrome） | `lenovo.env` | 首次上架 + 版本更新，不含应用认领；上传走 `chrome-file-upload` |
 | `publish-app-samsung` | 浏览器 | `samsung.env` | 需英文默认商店资料；含拒审修复流程 |
-| `publish-app-xunfei` | 浏览器 | `xunfei.env` | 请求体加密，状态只能读页面；大包走自带 harness |
+| `publish-app-xunfei` | 浏览器（opencli 主 Chrome） | `xunfei.env` | 请求体加密，状态只能读页面；含首次上架流程；上传走 `chrome-file-upload`，自带 harness 备用 |
 
 ## 使用方式
 
