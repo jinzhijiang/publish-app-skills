@@ -50,7 +50,8 @@ opencli browser lenovo open https://open.lenovomm.com/developer/mgmt
 - **页面脚本**：`opencli browser lenovo eval '<IIFE>'`，返回 JSON 字符串；async IIFE 会等结果。
 - **上传**：一律 `chrome-file-upload` 分块注入（`opencli browser upload` 对 antd 隐藏 input 弹不出文件选择框）。
 - **分类 / 标签下拉**：antd Select 点选项不生效，用 first-launch.md 里调组件 `onChange` 的做法，选完核对显示文字。
-- **保活**：等发布人操作期间后台起 `"$CFU/scripts/opencli_keepalive.sh" lenovo 60 &`，没保存的表单约 45 秒空闲就会随标签页丢失。
+- **保活**：等发布人操作期间后台起 `bash "$CFU/scripts/opencli_keepalive.sh" lenovo 60 &`，没保存的表单约 45 秒空闲就会随标签页丢失。
+  起完用 `pgrep -fl 'opencli_keepalive.sh lenovo'` 确认在跑——部署副本可能丢了可执行位，直接执行脚本会静默失败，所以一律用 `bash` 调。
 - **偶发 `attach_failed`**：别的扩展插了 iframe，隔 3 秒重试。
 - 收尾 `opencli browser lenovo close` 释放标签页。
 

@@ -53,7 +53,8 @@ opencli browser baidu open https://app.baidu.com/newapp/apps/list
 - **点击 / 填写**：优先 `opencli browser baidu click|fill|type`。`fill` 对百度 `type=normal` 的自定义 input 报
   `not_editable` 时改用 `type`，填完用 eval 读 `.value` 核对。
 - **保活**：opencli 自己开的标签页空闲约 45 秒会被回收，没提交的表单整页丢失。凡是要等人
-  （登录、确认上传、确认声明、确认提交），先后台起 `"$CFU/scripts/opencli_keepalive.sh" baidu 60 &`，人回来后停掉。
+  （登录、确认上传、确认声明、确认提交），先后台起 `bash "$CFU/scripts/opencli_keepalive.sh" baidu 60 &`，人回来后停掉。
+  起完用 `pgrep -fl 'opencli_keepalive.sh baidu'` 确认在跑——部署副本可能丢了可执行位，直接执行脚本会静默失败，所以一律用 `bash` 调。
 - **偶发 `attach_failed`**（`Cannot access a chrome-extension:// URL of different extension`）：别的扩展插了 iframe，
   隔 3 秒重试即可。
 - 收尾 `opencli browser baidu close` 释放标签页。

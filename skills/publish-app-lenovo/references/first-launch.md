@@ -83,7 +83,7 @@ file input 共 15 个：安装包 1、图标 1、截图 5（每个位一个）�
 
   选完用 `.ant-select-selection-item` 的文字核对。实测分类「理财金融」值 `28`、标签「记账」值 `131`。
 - **文本**：`#appName` 等 input 和两个 textarea 用 `opencli browser lenovo fill` 都正常，它会回读校验。
-- **保活**：等发布人补材料或确认提交时，后台起 `"$CFU/scripts/opencli_keepalive.sh" lenovo 60 &`。
+- **保活**：等发布人补材料或确认提交时，后台起 `bash "$CFU/scripts/opencli_keepalive.sh" lenovo 60 &`。
   已经保存过的草稿不怕标签页被回收，没保存的会整页丢失。
 - **偶发 `attach_failed`**（`Cannot access a chrome-extension:// URL of different extension`）：隔 3 秒重试。
 

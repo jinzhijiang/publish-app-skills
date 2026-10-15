@@ -45,7 +45,7 @@ file input 共 4 个，按页面顺序：安装包、图标、截图、版权证
 
 - **保活**：opencli 自己开的标签页空闲约 45 秒就会被回收，整张表单随之丢失（本次丢过一次）。
   只要接下来要等人（登录、确认声明、确认提交），先在后台起
-  `"$CFU/scripts/opencli_keepalive.sh" baidu 60 &`，人回来后 `pkill -f 'opencli_keepalive.sh baidu'`。
+  `bash "$CFU/scripts/opencli_keepalive.sh" baidu 60 &`，人回来后 `pkill -f 'opencli_keepalive.sh baidu'`。
 - **打标记**：4 个 file input 先按 `chrome-file-upload` 第 1 步列出上下文，再分别打上
   `data-cfu="apk" / "icon" / "shots" / "copyright"`，后面的命令都用属性选择器。
 - **上传**：`opencli browser baidu upload` 对隐藏的 `one-uploader-input` 必报

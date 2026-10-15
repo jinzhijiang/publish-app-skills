@@ -14,7 +14,8 @@
 **等人登录**：opencli 打开登录页后，先起保活，再在后台轮询网址，跳离 `/login` 就继续：
 
 ```bash
-"$CFU/scripts/opencli_keepalive.sh" ali 60 &
+bash "$CFU/scripts/opencli_keepalive.sh" ali 60 &
+pgrep -fl 'opencli_keepalive.sh ali'   # 确认保活真的在跑
 for i in $(seq 1 120); do u=$(opencli browser ali get url | tail -1)
   case "$u" in *open.9game.cn/login*) sleep 15;; *) echo "logged in: $u"; break;; esac; done
 ```
