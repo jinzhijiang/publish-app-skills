@@ -28,7 +28,7 @@ publish-app-skills/
 │   │   ├── config.example.env        # 应用名/包名/AppID 等项目侧信息，同样按项目隔离
 │   │   └── references/workflow.md    # 平台实测：控制台路由、表单约束、选择器
 │   ├── publish-app-ali/              # 阿里应用分发 / 九游：同上
-│   ├── publish-app-baidu/            # 百度：同上
+│   ├── publish-app-baidu/            # 百度：同上，另有 first-launch.md；只用 opencli 驱动主 Chrome
 │   ├── publish-app-lenovo/           # 联想：同上
 │   ├── publish-app-samsung/          # 三星 Galaxy Store：同上
 │   ├── publish-app-xunfei/           # 科大讯飞 AI 学习机：浏览器流程 + 自带大包上传 harness
@@ -51,7 +51,7 @@ publish-app-skills/
 | `publish-app-yingyongbao` | open.qq.com API | `yingyongbao.env` | HmacSHA256 + COS 预签名上传 |
 | `publish-app-360` | 浏览器 | `360.env` | 无发版 API；状态可在已登录标签页内读接口 |
 | `publish-app-ali` | 浏览器 | `ali.env` | 同上 |
-| `publish-app-baidu` | 浏览器 | `baidu.env` | 同上，含 AI 合规声明字段 |
+| `publish-app-baidu` | 浏览器（opencli 主 Chrome） | `baidu.env` | 同上，含 AI 合规声明字段；含首次上架流程，上传走 `chrome-file-upload` |
 | `publish-app-lenovo` | 浏览器 | `lenovo.env` | 仅版本更新，不走建应用/应用认领 |
 | `publish-app-samsung` | 浏览器 | `samsung.env` | 需英文默认商店资料；含拒审修复流程 |
 | `publish-app-xunfei` | 浏览器 | `xunfei.env` | 请求体加密，状态只能读页面；大包走自带 harness |

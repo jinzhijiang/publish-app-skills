@@ -1,4 +1,4 @@
 interface:
   display_name: "百度应用市场发布"
-  short_description: "通过 Chrome 发布百度 Android APK 并核验合规与审核状态"
-  default_prompt: "使用 $publish-app-baidu 预检百度渠道 APK，并在明确确认门槛下通过 Chrome 更新应用和提交审核。"
+  short_description: "用 opencli 驱动主 Chrome 完成百度首次上架与 APK 更新，并核验合规与审核状态"
+  default_prompt: "使用 $publish-app-baidu 预检百度渠道 APK，用 opencli 驱动主 Chrome 新建应用或更新应用，在明确确认门槛下提交审核。"

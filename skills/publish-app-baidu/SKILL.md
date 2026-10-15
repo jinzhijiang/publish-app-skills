@@ -1,13 +1,13 @@
 ---
 name: publish-app-baidu
-description: Prepare and publish Android APK updates to the Baidu App Open Platform through Chrome, or query 百度上架/审核状态与驳回原因 read-only via the console's own API. Use when working with 百度应用开放平台 or 百度移动应用平台, uploading a baidu VasDolly channel APK, checking whether a version is 已上线 / 审核中 / 未通过, reading the 未通过原因 rejectReason text, reading parsed package/version or audit status, updating release notes, answering Baidu AI compliance fields, or submitting an app update for review.
+description: Launch new apps and publish Android APK updates to the Baidu App Open Platform by driving the user's main Chrome with opencli, or query 百度上架/审核状态与驳回原因 read-only via the console's own API. Use when working with 百度应用开放平台 or 百度移动应用平台, creating a new app (新建应用 / 首次上架), uploading a baidu VasDolly channel APK, checking whether a version is 已上线 / 审核中 / 未通过, reading the 未通过原因 rejectReason text, reading parsed package/version or audit status, updating release notes, answering Baidu AI compliance fields, or submitting an app update for review.
 ---
 
 # 百度应用市场发版
 
 > 本文中形如 `docs/发布版本更新日志.md`、`docs/应用发布平台清单.md` 的路径，指的是**调用方项目**仓库里的文档（相对项目根），不是本 skill 目录里的文件；各项目按自己的约定放置即可。
 
-通过 Chrome 为目标应用更新百度渠道 APK、合规资料并提交审核。百度没有官方发布 API；只使用实时控制台，不编写或伪造上传 API。
+通过 opencli 驱动用户的主 Chrome，为目标应用首次上架或更新百度渠道 APK、合规资料并提交审核。百度没有官方发布 API；只使用实时控制台，不编写或伪造上传 API。
 
 ## 固定合同
 
@@ -21,6 +21,7 @@ description: Prepare and publish Android APK updates to the Baidu App Open Platf
 - 更新说明来源：`docs/发布版本更新日志.md`
 - 发布状态清单：`docs/应用发布平台清单.md`
 - 实测浏览器路由与字段约束：`references/workflow.md`
+- 首次上架（新建应用表单契约、opencli 自动化的坑）：`references/first-launch.md`
 
 上面的 `BAIDU_*` 取自**调用方项目**的配置，不写进本 skill：
 
@@ -34,34 +35,59 @@ cp "$SKILL_DIR/config.example.env" ~/.config/ai-ignore-config/<项目名>/baidu.
 
 不要固化历史 tab、详情 URL、APPID、下载地址、控件顺序、版本或摘要。每次都读取本地产物和实时页面。
 
+## 浏览器驱动：只用 opencli
+
+首次上架和版本更新都用 opencli 驱动用户自己的主 Chrome，不用 chrome-devtools MCP 或 Claude in Chrome：
+
+- 主 Chrome 没有自动化标记，用的是发布人已有的百度登录态；MCP 拉起的 Chrome 带 `navigator.webdriver`，登录态也不共享。
+- 文件上传走 `chrome-file-upload` skill（opencli 分块写入页面、核对 SHA-256 后注入），不依赖文件选择框和本地网络权限。
+
+```bash
+opencli doctor                                   # 需要 Extension: connected
+opencli browser baidu open https://app.baidu.com/newapp/apps/list
+```
+
+下文的会话名都用 `baidu`；`CFU` 指 `chrome-file-upload` skill 目录（部署后是 `~/.claude/skills/chrome-file-upload`）。
+
+- **页面脚本**：`opencli browser baidu eval '<IIFE>'`，返回 JSON 字符串；async IIFE 会等结果。
+- **点击 / 填写**：优先 `opencli browser baidu click|fill|type`。`fill` 对百度 `type=normal` 的自定义 input 报
+  `not_editable` 时改用 `type`，填完用 eval 读 `.value` 核对。
+- **保活**：opencli 自己开的标签页空闲约 45 秒会被回收，没提交的表单整页丢失。凡是要等人
+  （登录、确认上传、确认声明、确认提交），先后台起 `"$CFU/scripts/opencli_keepalive.sh" baidu 60 &`，人回来后停掉。
+- **偶发 `attach_failed`**（`Cannot access a chrome-extension:// URL of different extension`）：别的扩展插了 iframe，
+  隔 3 秒重试即可。
+- 收尾 `opencli browser baidu close` 释放标签页。
+
 ## 0. 实时状态查询（只读，不必走完整发版流程）
 
 只想知道某版本上架到哪一步、或想读驳回原因时用这一节。**驳回原因在页面上藏在状态列图标的
-弹出抽屉里，`get_page_text` 读不到**，只有走接口或截图才拿得到——这也是本节存在的主要理由。
+弹出抽屉里，读页面文字拿不到**，只有走接口或截图才拿得到——这也是本节存在的主要理由。
 
-做法：在 Chrome 里打开 `https://app.baidu.com/newapp/apps/list`（已登录），
-用 `javascript_tool` 在该标签页执行下面这段。
+做法：`opencli browser baidu open https://app.baidu.com/newapp/apps/list`（已登录），
+再执行下面这条（async IIFE，opencli 会等它返回）：
 
-```js
-const PATH = 'passauth/GET/AppCenterPackageService/getAppPackageList';
-const reqid = crypto.randomUUID();
-const form = new URLSearchParams({
-  optid: '-1',
-  params: JSON.stringify({ pageNo: 1, pageSize: 20, type: 2, filters: [] }),
-  path: PATH,
-  reqid,
-  token: '',                                   // 平台就是传空串，不要试图找 token
-  userid: String(window.__app_pass_id || '')   // userid 来源
-});
-const r = await fetch('/hairuo/request.ajax?path=' + encodeURIComponent(PATH) + '&reqid=' + reqid, {
-  method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString()
-});
-if (!(r.headers.get('content-type')||'').includes('json')) { 'SESSION_EXPIRED'; }
-const j = await r.json();
-const KEEP = ['appId','appName','packageName','packageVersion','state',
-              'onlineState','rejectReason','updateTime','isCommit'];
-const rows = ((j.data && j.data.appList) || []).map(o => Object.fromEntries(KEEP.map(k => [k, o[k]])));
-JSON.stringify({ total: j.data && j.data.totalCount, rows });
+```bash
+opencli browser baidu eval "(async () => {
+  const PATH = 'passauth/GET/AppCenterPackageService/getAppPackageList';
+  const reqid = crypto.randomUUID();
+  const form = new URLSearchParams({
+    optid: '-1',
+    params: JSON.stringify({ pageNo: 1, pageSize: 20, type: 2, filters: [] }),
+    path: PATH,
+    reqid,
+    token: '',                                   // 平台就是传空串，不要试图找 token
+    userid: String(window.__app_pass_id || '')   // userid 来源
+  });
+  const r = await fetch('/hairuo/request.ajax?path=' + encodeURIComponent(PATH) + '&reqid=' + reqid, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString()
+  });
+  if (!(r.headers.get('content-type') || '').includes('json')) return 'SESSION_EXPIRED';
+  const j = await r.json();
+  const KEEP = ['appId', 'appName', 'packageName', 'packageVersion', 'state',
+                'onlineState', 'rejectReason', 'updateTime', 'isCommit'];
+  const rows = ((j.data && j.data.appList) || []).map(o => Object.fromEntries(KEEP.map(k => [k, o[k]])));
+  return JSON.stringify({ total: j.data && j.data.totalCount, rows });
+})()"
 ```
 
 关于这几个参数（2026-09-02 实测）：
@@ -79,7 +105,7 @@ JSON.stringify({ total: j.data && j.data.totalCount, rows });
 | --- | --- |
 | `rejectReason` | **非空即被驳回，原文就是审核意见**；重新提交通过后会被清空 |
 | `state` | `900` = 未通过、`100` = 已上线（2026-09-02 实测）、`-998` = 审核中（2026-10-14 实测，列表同时显示「审核中」）；完整码表仍未知 |
-| `onlineState` | 在架状态：`1` = 已上线、`2` = 未在架；新版本审核中时为 `0`（2026-10-14 实测，旧版本仍在架） |
+| `onlineState` | 在架状态：`1` = 已上线、`2` = 未在架；新版本审核中时为 `0`（2026-10-14 实测，旧版本仍在架）；首发审核中也是 `0`、`state=-998`、`isCommit=true`（2026-10-15 实测） |
 | `packageVersion` | 最近一次提交的版本名 |
 
 判定优先看 `rejectReason` 是否非空，其次才是 `state` / `onlineState`。遇到新码值补记到本节。
@@ -122,10 +148,11 @@ apksigner verify --verbose --print-certs \
 
 ## 2. 读取实时状态
 
-使用 `chrome:control-chrome` 复用用户已登录的 Chrome 会话进入固定入口。登录、验证码、二次验证、测试账号和证件资料均交给用户亲自处理；不要读取、复制、记录或复述账号、密码、验证码、证件号及其他敏感字段。
+用 opencli 复用用户已登录的主 Chrome 进入固定入口。登录、验证码、二次验证、测试账号和证件资料均交给用户亲自处理；不要读取、复制、记录或复述账号、密码、验证码、证件号及其他敏感字段。
 
 从实时导航进入应用列表，用配置里的应用名和包名交叉确认目标。先读取当前线上版本、审核状态和版本管理记录：
 
+- 列表里没有目标包名时走首次上架：先读 [references/first-launch.md](references/first-launch.md)，从「新建应用」进入，不要拿别的应用的「更新」顶替。
 - 同版本已审核中、已上线或已有记录时停止，不重复上传或提交。
 - 本地版本不高于线上版本时停止并核查版本合同。
 - 目标应用、页面语义或实时状态不明确时停止，不猜测历史 ID 或选择器。
@@ -137,18 +164,26 @@ apksigner verify --verbose --print-certs \
 更新页已有旧包时，在实时 DOM 和可见界面中确认删除控件紧邻旧包链接，再清除该表单项，使可见“文件上传”按钮可用。不要按历史位置盲点删除控件。
 本次上传确认只授权清空当前更新表单中的旧包字段；若实时提示该动作会删除已保存记录、线上安装包或产生其他独立影响，立即停止并为该影响取得新确认。
 
-使用 Chrome 文件选择器上传：
+用 `chrome-file-upload` 分块注入（`opencli browser baidu upload` 对百度隐藏的 `one-uploader-input` 弹不出文件选择框，别反复试）：
 
-1. 先监听 `filechooser`。
-2. 点击可见“文件上传”按钮。
-3. 对捕获的文件选择器调用 `setFiles`，传入已确认的 APK 绝对路径。
-4. 等待上传完成并重新读取页面。
+1. 列出 `input[type=file]` 及上下文，给 accept 含 `apk` 的那个打上 `data-cfu="apk"`。
+2. 注入：
 
-不要直接操作隐藏的 `input[type=file]`。上传后核对平台解析的应用名、包名、版本名和页面提供的版本号；任一不一致都停止，不填写合规声明、不提交审核。
+   ```bash
+   python3 "$CFU/scripts/opencli_upload.py" --session baidu --file "$APK" \
+     --expect-url app.baidu.com --selector '[data-cfu="apk"]'
+   ```
+
+3. 等 20–90 秒再读解析结果（大包注入后页面主线程会卡一阵，别重复注入）。解析区在整页文字里找「包名称：」，或截图看。
+4. 文件条变红「解析失败」时，先点该条的垃圾桶 `.one-uploader-file-item-control` 清掉，再注入一次。
+
+上传后核对平台解析的应用名、包名、版本名和页面提供的版本号；任一不一致都停止，不填写合规声明、不提交审核。
 
 ## 4. 更新版本资料
 
 从 `docs/发布版本更新日志.md` 读取对应版本的 Android 简体中文更新说明。按百度页面口径控制在 500 字节内，其中汉字按 2 字节计算；压缩时保留真实功能信息，不编造功能、隐私、安全或合规承诺。填写后重新读取文本和页面校验结果。
+
+两个 textarea（`#appIntroduce`、`#updateInfo`）用 `opencli browser baidu fill` 填，它会回读校验。
 
 只更新当前版本要求的字段。保留已有分类、简介、标签、图标、截图、资质、隐私政策、测试资料和其他商店材料，除非用户明确要求变更。页面若没有独立保存草稿能力，不得用“提交审核”代替保存。
 

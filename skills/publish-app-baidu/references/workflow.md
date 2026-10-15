@@ -7,7 +7,8 @@
 | 用途 | 路由 / 入口 | 实时页面信号 |
 | --- | --- | --- |
 | 应用列表 | `https://app.baidu.com/newapp/apps/list` | 列表含目标应用、包名及“版本管理 / 更新”操作 |
-| 更新表单 | 从目标行“更新”进入 | 标题为“更新应用”，旧包由“文件上传”项展示 |
+| 更新表单 | 从目标行“更新”进入（`/newapp/apps/detail/<id>`） | 标题为“更新应用”，旧包由“文件上传”项展示 |
+| 新建应用 | 列表左上“新建应用”（`/newapp/apps/detail`，不带 id） | 标题为“新建应用”；字段契约见 [first-launch.md](first-launch.md) |
 
 不要将页面显示的临时下载或上传链接记为 API；它们是一次性页面数据。每次通过应用列表中名称与包名交叉确认后再进入更新页。
 
@@ -33,17 +34,17 @@
 - 成功不能只凭按钮反馈，应回到应用列表确认新版本处于“审核中”。
 - 仅复用 Chrome 已登录会话操作可见 UI；不提取、保存或复用任何浏览器认证资料。
 
-## 2026-10-14 实测补充（chrome-devtools MCP）
+## 2026-10-14 实测补充（chrome-devtools MCP 时期）
 
-> 上传现在默认改用 `chrome-file-upload` skill（opencli + 主 Chrome 分块注入）；下面记录的 loopback harness
-> 是 chrome-devtools MCP 环境下的做法，仅作备用。
+> 自 2026-10-15 起百度上架与更新**一律用 opencli 驱动主 Chrome**，上传走 `chrome-file-upload`（见 SKILL.md「浏览器驱动」）。
+> 下面关于表单行为的结论仍然有效；loopback harness 与 `setTimeout` 点击两条是 MCP 时期的做法，留作历史记录，不再使用。
 
 - **更新表单不保存草稿**：离开 `/newapp/apps/detail/<id>`（包括为了核实状态跳回列表）会丢掉已上传的包和已填内容，
   只能从清旧包、重新上传做起。提交前不要离开表单页；核实状态放到提交之后。
 - **旧包字段**：上传组件是 `one-uploader`。表单打开时带着上一版的包，`文件上传` 按钮和 `.one-uploader-input`
   都是 disabled。旧包链接 `.one-uploader-file-item-label` 与删除按钮 `.one-uploader-file-item-control`（垃圾桶图标）
   在同一个 `.one-uploader-file-item-container` 里；点它只清表单字段，不弹确认、不影响已上线版本，之后上传控件可用。
-- **上传走 loopback harness**（MCP 的 `upload_file` 读不到项目目录）：`publish-app-xunfei` 的
+- ~~**上传走 loopback harness**~~（已弃用；MCP 的 `upload_file` 读不到项目目录时的做法）：`publish-app-xunfei` 的
   `cors_upload_server.py` serve 渠道包目录，页面内 fetch 后注入 `.one-uploader-input[type=file]` 并派发 `change`。
   首次需用户为 `app.baidu.com` 放行本地网络访问。注入 42MB 包后**页面主线程会卡 40 秒左右**（推测在算文件摘要），
   期间任何 `evaluate_script` 都会 30s 超时——等 60–75 秒再读，别重复注入。完成信号：文件条
@@ -53,3 +54,12 @@
 - **页面里有测试账号字段**（「测试账号」textarea），整页快照或遍历 textarea 会把它带出来；读表单时按标签跳过。
 - **「隐私保护承诺协议」默认已勾选**（沿用上次提交），它仍是法律声明，提交前要向发布人展示原文并确认保持勾选。
 - 提交后页面自动回到应用列表，行内显示新版本「审核中」，接口 `state=-998`、`onlineState=0`。
+
+## 2026-10-15 实测补充（opencli，首次上架）
+
+- 首发表单与更新表单是同一套组件，字段 id 相同（`#summary`、`#appIntroduce`、`#updateInfo`、`#privateUrl` 等）。
+  完整字段契约、截图批量注入、下拉与单选的点法见 [first-launch.md](first-launch.md)。
+- **「保存」同样要求先勾两项法律声明**，所以首发没有不带声明的草稿；等人确认期间必须给 opencli 会话保活，
+  否则约 45 秒空闲后标签页被回收，表单整页丢失。
+- 同一个包第二次注入出现过「解析失败」：删掉失败的文件条再注入一次即正常。
+- APK 解析区不在「上传安装包」的 `.one-form-item` 里，读解析结果要在整页文字里找「包名称：」。
